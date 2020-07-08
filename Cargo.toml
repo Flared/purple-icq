@@ -1,0 +1,18 @@
+[package]
+name = "purple-icq"
+version = "0.1.0"
+authors = ["Isra17 <isra017@gmail.com>"]
+
+[lib]
+name = "purple_icq"
+path = "src/lib.rs"
+crate-type = ["dylib"]
+
+[dependencies]
+libc = "*"
+glib-sys = "*"
+purple-sys = {git = "https://github.com/flared/libpurple-rust", rev = "b51193486f797b4618a98527aaf9b592dd920a11"}
+log = "0.4.8"
+env_logger = "0.7"
+lazy_static = "1.4.0"
+paste = "0.1"
