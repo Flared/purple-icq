@@ -1,23 +1,27 @@
-#[macro_use]
-mod purple;
 mod glib;
+mod icq_system;
+mod purple;
 
+use icq_system::{ICQSystemHandle, PurpleMessage};
 use lazy_static::lazy_static;
 use purple::*;
 use std::ffi::{CStr, CString};
+use std::io::Read;
 
 lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
 }
 
-struct PurpleICQ(String);
+struct PurpleICQ {
+    system: ICQSystemHandle,
+}
 
 impl purple::PrplPlugin for PurpleICQ {
     type Plugin = Self;
     fn new() -> Self {
         env_logger::init();
-
-        Self("Hello".into())
+        let system = icq_system::spawn();
+        Self { system }
     }
     fn register(&self, context: RegisterContext<Self>) -> RegisterContext<Self> {
         let info = purple::PrplInfo {
@@ -42,7 +46,7 @@ impl purple::PrplPlugin for PurpleICQ {
 
 impl purple::LoginHandler for PurpleICQ {
     fn login(&self, _account: &Account) {
-        println!("Login");
+        self.system.tx.try_send(PurpleMessage::Login {}).unwrap();
     }
 }
 impl purple::CloseHandler for PurpleICQ {
@@ -69,8 +73,12 @@ impl purple::StatusTypeHandler for PurpleICQ {
     }
 }
 impl purple::LoadHandler for PurpleICQ {
-    fn load(&self, _plugin: &purple::Plugin) -> bool {
-        println!("load {}", self.0);
+    fn load(&mut self, _plugin: &purple::Plugin) -> bool {
+        use std::os::unix::io::AsRawFd;
+        self.enable_input(
+            self.system.input_rx.as_raw_fd(),
+            purple::PurpleInputCondition::PURPLE_INPUT_READ,
+        );
         true
     }
 }
@@ -82,5 +90,26 @@ impl purple::ListIconHandler for PurpleICQ {
 }
 
 impl purple::ChatInfoHandler for PurpleICQ {}
+
+impl purple::InputHandler for PurpleICQ {
+    fn input(&mut self, _fd: i32, _cond: purple::PurpleInputCondition) {
+        log::debug!("Input");
+        // Consume the byte from the input pipe.
+        let mut buf = [0; 1];
+        self.system
+            .input_rx
+            .read(&mut buf)
+            .expect("Failed to read input pipe");
+
+        // Consume the actual message.
+        match self.system.rx.try_recv() {
+            Ok(message) => {
+                log::debug!("input: {:?}", message);
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => log::error!("Expected message, but empty"),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => log::error!("System disconnected"),
+        };
+    }
+}
 
 purple_prpl_plugin!(PurpleICQ);
