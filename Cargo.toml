@@ -1,4 +1,5 @@
 [package]
+edition = "2018"
 name = "purple-icq"
 version = "0.1.0"
 authors = ["Isra17 <isra017@gmail.com>"]
