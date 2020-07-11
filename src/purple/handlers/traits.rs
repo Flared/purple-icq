@@ -1,4 +1,4 @@
-use purple::{Account, Connection, Plugin, StatusType};
+use super::super::{Account, Connection, Plugin, StatusType};
 use std::ffi::CStr;
 pub trait LoadHandler {
     fn load(&self, plugin: &Plugin) -> bool;

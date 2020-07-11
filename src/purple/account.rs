@@ -1,4 +1,4 @@
-use purple::Connection;
+use super::Connection;
 use purple_sys;
 pub struct Account(*mut purple_sys::PurpleAccount);
 

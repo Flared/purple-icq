@@ -1,15 +1,10 @@
-extern crate log;
-extern crate paste;
-extern crate purple_sys;
-#[macro_use]
-extern crate lazy_static;
-
 #[macro_use]
 mod purple;
 mod glib;
 
 use purple::*;
 use std::ffi::{CStr, CString};
+use lazy_static::lazy_static;
 
 lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();

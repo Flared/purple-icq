@@ -1,4 +1,4 @@
-use purple::Plugin;
+use super::Plugin;
 use purple_sys;
 pub struct Connection(*mut purple_sys::PurpleConnection);
 
