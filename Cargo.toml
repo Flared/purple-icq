@@ -17,6 +17,8 @@ log = "0.4.8"
 env_logger = "0.7"
 lazy_static = "1.4.0"
 paste = "0.1"
-actix = "0.10.0-alpha.3"
-actix-rt = "1.1"
 os_pipe = "0.9"
+
+[dependencies.async-std]
+version = "1.6"
+features = ["unstable"]

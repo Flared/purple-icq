@@ -1,5 +1,6 @@
 mod glib;
 mod icq_system;
+#[macro_use]
 mod purple;
 
 use icq_system::{ICQSystemHandle, PurpleMessage};
@@ -106,8 +107,8 @@ impl purple::InputHandler for PurpleICQ {
             Ok(message) => {
                 log::debug!("input: {:?}", message);
             }
-            Err(std::sync::mpsc::TryRecvError::Empty) => log::error!("Expected message, but empty"),
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => log::error!("System disconnected"),
+            Err(async_std::sync::TryRecvError::Empty) => log::error!("Expected message, but empty"),
+            Err(async_std::sync::TryRecvError::Disconnected) => log::error!("System disconnected"),
         };
     }
 }
