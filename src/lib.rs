@@ -1,9 +1,9 @@
 mod glib;
-mod icq_system;
+mod icq;
 #[macro_use]
 mod purple;
 
-use icq_system::{ICQSystemHandle, PurpleMessage};
+use icq::system::{AccountInfo, ICQSystemHandle, PurpleMessage};
 use lazy_static::lazy_static;
 use purple::*;
 use std::ffi::{CStr, CString};
@@ -47,7 +47,10 @@ impl purple::PrplPlugin for PurpleICQ {
 
 impl purple::LoginHandler for PurpleICQ {
     fn login(&self, _account: &Account) {
-        self.system.tx.try_send(PurpleMessage::Login {}).unwrap();
+        self.system
+            .tx
+            .try_send(PurpleMessage::Login(AccountInfo {}))
+            .unwrap();
     }
 }
 impl purple::CloseHandler for PurpleICQ {

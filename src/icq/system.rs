@@ -1,11 +1,15 @@
+use super::protocol;
 use async_std::sync::{channel, Receiver, Sender};
 use log;
 
 const CHANNEL_CAPACITY: usize = 1024;
 
 #[derive(Debug)]
+pub struct AccountInfo {}
+
+#[derive(Debug)]
 pub enum PurpleMessage {
-    Login,
+    Login(AccountInfo),
 }
 
 #[derive(Debug)]
@@ -57,9 +61,17 @@ impl ICQSystem {
 
     async fn run(&mut self) {
         loop {
-            let purple_message = self.rx.recv().await;
+            let purple_message = match self.rx.recv().await {
+                Ok(r) => r,
+                Err(error) => {
+                    log::error!("Failed to receive message: {:?}", error);
+                    break;
+                }
+            };
             log::info!("Message: {:?}", purple_message);
-            self.ping().await;
+            match purple_message {
+                PurpleMessage::Login(account_info) => self.login(account_info).await,
+            }
         }
     }
 
@@ -71,5 +83,13 @@ impl ICQSystem {
         self.tx.send(message).await;
         use std::io::Write;
         self.input_tx.write(&[0]).unwrap();
+    }
+
+    async fn login(&mut self, account_info: AccountInfo) {
+        protocol::register(account_info.phone_number, self.read_code).await?;
+    }
+
+    async fn read_code(&mut self, phone_number: String) -> String {
+        "".into()
     }
 }
