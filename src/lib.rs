@@ -2,9 +2,10 @@ mod glib;
 mod icq;
 #[macro_use]
 mod purple;
+mod messages;
 
-use icq::system::{AccountInfo, ICQSystemHandle, PurpleMessage};
 use lazy_static::lazy_static;
+use messages::{AccountHandle, AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
 use std::ffi::{CStr, CString};
 use std::io::Read;
@@ -21,7 +22,7 @@ impl purple::PrplPlugin for PurpleICQ {
     type Plugin = Self;
     fn new() -> Self {
         env_logger::init();
-        let system = icq_system::spawn();
+        let system = icq::system::spawn();
         Self { system }
     }
     fn register(&self, context: RegisterContext<Self>) -> RegisterContext<Self> {
@@ -46,10 +47,14 @@ impl purple::PrplPlugin for PurpleICQ {
 }
 
 impl purple::LoginHandler for PurpleICQ {
-    fn login(&self, _account: &Account) {
+    fn login(&self, account: &Account) {
+        let phone_number = account.get_username().unwrap().into();
         self.system
             .tx
-            .try_send(PurpleMessage::Login(AccountInfo {}))
+            .try_send(PurpleMessage::Login(AccountInfo::new(
+                AccountHandle::from(account),
+                phone_number,
+            )))
             .unwrap();
     }
 }
@@ -107,12 +112,26 @@ impl purple::InputHandler for PurpleICQ {
 
         // Consume the actual message.
         match self.system.rx.try_recv() {
-            Ok(message) => {
-                log::debug!("input: {:?}", message);
-            }
+            Ok(message) => self.process_message(message),
             Err(async_std::sync::TryRecvError::Empty) => log::error!("Expected message, but empty"),
             Err(async_std::sync::TryRecvError::Disconnected) => log::error!("System disconnected"),
         };
+    }
+}
+
+impl PurpleICQ {
+    fn process_message(&self, message: SystemMessage) {
+        match message {
+            SystemMessage::ExecAccount {
+                handle,
+                function,
+                result_channel,
+            } => {
+                let ret = function(handle.as_account());
+                result_channel.try_send(ret).unwrap();
+            }
+            _ => {}
+        }
     }
 }
 

@@ -1,35 +1,21 @@
 use super::protocol;
-use async_std::sync::{channel, Receiver, Sender};
+use crate::messages::{
+    AccountHandle, AccountInfo, FdSender, ICQSystemHandle, PurpleMessage, SystemMessage,
+};
+use async_std::sync::{channel, Receiver};
 use log;
 
 const CHANNEL_CAPACITY: usize = 1024;
-
-#[derive(Debug)]
-pub struct AccountInfo {}
-
-#[derive(Debug)]
-pub enum PurpleMessage {
-    Login(AccountInfo),
-}
-
-#[derive(Debug)]
-pub enum SystemMessage {
-    Ping,
-}
-
-pub struct ICQSystemHandle {
-    pub input_rx: os_pipe::PipeReader,
-    pub rx: Receiver<SystemMessage>,
-    pub tx: Sender<PurpleMessage>,
-}
 
 pub fn spawn() -> ICQSystemHandle {
     let (input_rx, input_tx) = os_pipe::pipe().unwrap();
     let (system_tx, system_rx) = channel(CHANNEL_CAPACITY);
     let (purple_tx, purple_rx) = channel(CHANNEL_CAPACITY);
 
+    let fd_sender = FdSender::new(input_tx, system_tx);
+
     log::debug!("Starting async thread.");
-    std::thread::spawn(move || run(input_tx, system_tx, purple_rx));
+    std::thread::spawn(move || run(fd_sender, purple_rx));
 
     ICQSystemHandle {
         input_rx,
@@ -38,25 +24,20 @@ pub fn spawn() -> ICQSystemHandle {
     }
 }
 
-pub fn run(input_tx: os_pipe::PipeWriter, tx: Sender<SystemMessage>, rx: Receiver<PurpleMessage>) {
+pub fn run(tx: FdSender<SystemMessage>, rx: Receiver<PurpleMessage>) {
     log::info!("Starting ICQ");
-    let mut system = ICQSystem::new(input_tx, tx, rx);
+    let mut system = ICQSystem::new(tx, rx);
     async_std::task::block_on(system.run());
 }
 
 pub struct ICQSystem {
-    input_tx: os_pipe::PipeWriter,
-    tx: Sender<SystemMessage>,
+    tx: FdSender<SystemMessage>,
     rx: Receiver<PurpleMessage>,
 }
 
 impl ICQSystem {
-    fn new(
-        input_tx: os_pipe::PipeWriter,
-        tx: Sender<SystemMessage>,
-        rx: Receiver<PurpleMessage>,
-    ) -> Self {
-        Self { input_tx, tx, rx }
+    fn new(tx: FdSender<SystemMessage>, rx: Receiver<PurpleMessage>) -> Self {
+        Self { tx, rx }
     }
 
     async fn run(&mut self) {
@@ -72,24 +53,41 @@ impl ICQSystem {
             match purple_message {
                 PurpleMessage::Login(account_info) => self.login(account_info).await,
             }
+            self.ping().await
         }
     }
 
     async fn ping(&mut self) {
-        self.send_to_purple(SystemMessage::Ping).await;
-    }
-
-    async fn send_to_purple(&mut self, message: SystemMessage) {
-        self.tx.send(message).await;
-        use std::io::Write;
-        self.input_tx.write(&[0]).unwrap();
+        self.tx.send(SystemMessage::Ping).await;
     }
 
     async fn login(&mut self, account_info: AccountInfo) {
-        protocol::register(account_info.phone_number, self.read_code).await?;
+        log::debug!("login");
+        match protocol::register(&account_info.phone_number, || {
+            log::debug!("read_code");
+            self.read_code(&account_info.account)
+        })
+        .await
+        {
+            Ok(_) => (),
+            Err(error) => {
+                log::error!("Failed to register account: {:?}", error);
+            }
+        }
     }
 
-    async fn read_code(&mut self, phone_number: String) -> String {
-        "".into()
+    async fn read_code(&mut self, account: &AccountHandle) -> Option<String> {
+        let username = account
+            .exec(
+                |account| {
+                    let username = account.get_username().unwrap().into_owned();
+                    log::info!("Hello {:?} from purple thread", username);
+                    Box::new(username)
+                },
+                &mut self.tx,
+            )
+            .await;
+        log::info!("Hello {:?} from icq thread", username);
+        username.ok()
     }
 }

@@ -5,6 +5,7 @@ pub use self::loader::{PrplInfo, PrplPluginLoader, RegisterContext};
 pub use self::plugin::Plugin;
 pub use self::status_type::{PurpleStatusPrimitive, StatusType};
 pub use purple_sys::PurpleInputCondition;
+
 use std::os::raw::c_void;
 mod account;
 mod connection;
