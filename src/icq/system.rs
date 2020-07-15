@@ -80,6 +80,19 @@ impl ICQSystem {
         let username = account
             .exec(
                 |account| {
+                    account.request_input(
+                        Some("SMS Code"),
+                        Some("Enter SMS code"),
+                        Some("You will be sent an SMS message containing your auth code."),
+                        None,
+                        false,
+                        false,
+                        None,
+                        "Login",
+                        "Cancel",
+                        || {},
+                        None,
+                    );
                     let username = account.get_username().unwrap().into_owned();
                     log::info!("Hello {:?} from purple thread", username);
                     Box::new(username)

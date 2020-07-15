@@ -9,6 +9,7 @@ pub use purple_sys::PurpleInputCondition;
 use std::os::raw::c_void;
 mod account;
 mod connection;
+mod ffi;
 mod handlers;
 mod loader;
 mod plugin;

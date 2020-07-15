@@ -23,7 +23,7 @@ where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Option<String>>,
 {
-    let send_code_body = client::SendCodeBody {
+    let _send_code_body = client::SendCodeBody {
         req_id: &request_id(),
         params: &client::SendCodeBodyParams {
             phone: &phone_number,
