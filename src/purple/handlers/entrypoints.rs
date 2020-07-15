@@ -1,10 +1,10 @@
-use lazy_static::lazy_static;
 use crate::glib::GList;
+use lazy_static::lazy_static;
 use log::{debug, error};
 use std::panic::catch_unwind;
 
-use super::traits;
 use super::super::{Account, Connection, Plugin};
+use super::traits;
 use purple_sys;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
