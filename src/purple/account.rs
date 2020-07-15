@@ -62,7 +62,23 @@ impl Account {
 
         let mut connection = self.get_connection().map(|mut c| c.as_ptr());
 
-        let callback_closure = |value: Option<Cow<str>>| callback(value);
+        let callback_closure = move |value: Option<Cow<str>>| {
+            // Regain ownership over strings to free them.
+            // Safe since all of those pointer where generated from into_raw()
+            unsafe {
+                title.map(|p| CString::from_raw(p));
+                primary.map(|p| CString::from_raw(p));
+                secondary.map(|p| CString::from_raw(p));
+                default_value.map(|p| CString::from_raw(p));
+                hint.map(|p| CString::from_raw(p));
+                who.map(|p| CString::from_raw(p));
+                CString::from_raw(ok_text);
+                CString::from_raw(cancel_text);
+                who.map(|p| CString::from_raw(p));
+            }
+
+            callback(value);
+        };
 
         unsafe {
             purple_request_input_with_callback(
