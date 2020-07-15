@@ -1,6 +1,6 @@
+use super::handlers::entrypoints;
 use crate::purple::PrplPlugin;
 use log::info;
-use super::handlers::entrypoints;
 use std::marker::PhantomData;
 use std::os::raw::c_void;
 

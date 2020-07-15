@@ -2,9 +2,9 @@
 mod purple;
 mod glib;
 
+use lazy_static::lazy_static;
 use purple::*;
 use std::ffi::{CStr, CString};
-use lazy_static::lazy_static;
 
 lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
