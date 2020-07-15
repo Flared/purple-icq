@@ -21,18 +21,15 @@ jobs:
       run: |
         bash -c '\
           sudo apt-get update \
-          && sudo apt-get install -y intltool libgtk2.0-dev libxss-dev libmeanwhile-dev libnss3-dev \
-                                     libltdl3-dev libperl-dev libstartup-notification0-dev \
-                                     libzephyr-dev libxml2-dev libdbus-glib-1-dev dbus \
-                                     libxml-parser-perl libsasl2-dev libgadu-dev xsltproc \
-                                     libfarstream-0.2-dev libnm-dev libsqlite3-dev libidn11-dev \
+          && sudo apt-get install -y intltool libgtk2.0-dev libxss-dev libnss3-dev \
+                                     libltdl3-dev libxml2-dev libxml-parser-perl \
+                                     libsasl2-dev libsqlite3-dev libidn11-dev \
           && hg clone https://keep.imfreedom.org/pidgin/pidgin \
           && cd pidgin \
           && hg up v2.13.0 \
           && ./autogen.sh \
                   --prefix=/usr \
                   --disable-nm \
-                  --with-dynamic-prpls=bonjour,gg,irc,jabber,novell,oscar,sametime,simple,zephyr,null \
                   --without-x --disable-gtkspell --disable-gstreamer \
                   --disable-vv --disable-meanwhile --disable-avahi \
                   --disable-dbus --disable-tcl --disable-gtkui --disable-perl \
