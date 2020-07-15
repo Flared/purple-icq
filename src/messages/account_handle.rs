@@ -49,7 +49,7 @@ impl<'a> AccountProxy<'a> {
         ok_text: String,
         cancel_text: String,
         who: Option<String>,
-    ) -> Option<String> {
+    ) -> Result<Option<String>, async_std::sync::RecvError> {
         let (tx, rx) = channel(1);
         self.exec(move |account| {
             account.request_input(
@@ -63,14 +63,16 @@ impl<'a> AccountProxy<'a> {
                 &ok_text,
                 &cancel_text,
                 move |input_value| {
-                    tx.try_send(input_value.map(|v| v.into_owned()));
+                    if let Err(error) = tx.try_send(input_value.map(|v| v.into_owned())) {
+                        log::error!("Failed to send result: {:?}", error);
+                    }
                 },
                 who.as_deref(),
             )
         })
         .await;
 
-        rx.recv().await.unwrap()
+        rx.recv().await
     }
 }
 

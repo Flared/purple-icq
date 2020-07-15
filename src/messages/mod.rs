@@ -25,12 +25,6 @@ impl<T> FdSender<T> {
 }
 
 #[derive(Debug)]
-pub enum ExecError {
-    RecvError(async_std::sync::RecvError),
-    DowncastError,
-}
-
-#[derive(Debug)]
 pub struct AccountInfo {
     pub account: AccountHandle,
     pub phone_number: String,
