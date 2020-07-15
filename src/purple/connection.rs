@@ -15,22 +15,4 @@ impl Connection {
             Some(unsafe { Plugin::from_raw(plugin_ptr) })
         }
     }
-
-    //    pub fn request_input(
-    //        &self,
-    //        title: Option<&str>,
-    //        primary: Option<&str>,
-    //        secondary: Option<&str>,
-    //        default_value: Option<&str>,
-    //        multiline: bool,
-    //        masked: bool,
-    //        hint: Option<&str>,
-    //        ok_text: &str,
-    //        cancel_text: &str,
-    //    ) {
-    //        let c_title = CString::new(title).unwrap().into_raw();
-    //        let c_primary = CString::new(primary).unwrap().into_raw();
-    //        let c_secondary = CString::new(secondary).unwrap().into_raw();
-    //        let c_default_value = CString::new(default_value).unwrap().into_raw();
-    //    }
 }
