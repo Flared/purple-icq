@@ -46,9 +46,11 @@ impl Account {
         hint: Option<&str>,
         ok_text: &str,
         cancel_text: &str,
-        _callback: F,
+        callback: F,
         who: Option<&str>,
-    ) {
+    ) where
+        F: FnOnce(Option<Cow<str>>) + 'static,
+    {
         let title = title.map(|v| CString::new(v).unwrap().into_raw());
         let primary = primary.map(|v| CString::new(v).unwrap().into_raw());
         let secondary = secondary.map(|v| CString::new(v).unwrap().into_raw());
@@ -60,19 +62,10 @@ impl Account {
 
         let mut connection = self.get_connection().map(|mut c| c.as_ptr());
 
-        let callback_closure = |value: Option<Cow<str>>| {
-            log::info!("In closure");
-            log::info!("value: {}", value.unwrap_or("<cancel>".into()));
-        };
-        let user_data = Box::into_raw(Box::new(callback_closure)) as *mut c_void;
-
-        let request_input_ok_trampoline_ptr: RequestInputOkTrampoline = request_input_ok_trampoline;
-
-        let request_input_cancel_trampoline_ptr: RequestInputCancelTrampoline =
-            request_input_cancel_trampoline;
+        let callback_closure = |value: Option<Cow<str>>| callback(value);
 
         unsafe {
-            purple_sys::purple_request_input(
+            purple_request_input_with_callback(
                 connection.as_mut_ptr() as *mut c_void,
                 title.as_ptr(),
                 primary.as_ptr(),
@@ -82,63 +75,82 @@ impl Account {
                 masked as i32,
                 hint.as_mut_ptr(),
                 ok_text,
-                None,
                 cancel_text,
-                None
+                callback_closure,
                 self.0,
                 who.as_ptr(),
                 std::ptr::null_mut(),
-                user_data,
             );
         }
     }
 }
 
-type RequestInputCallback = dyn FnOnce(Option<Cow<str>>) + 'static + std::panic::RefUnwindSafe;
-struct RequestInputData {
-    callback: Box<RequestInputCallback>,
+unsafe fn purple_request_input_with_callback<F>(
+    connection: *mut c_void,
+    title: *const c_char,
+    primary: *const c_char,
+    secondary: *const c_char,
+    default_value: *const c_char,
+    multiline: i32,
+    masked: i32,
+    hint: *mut c_char,
+    ok_text: *const c_char,
+    cancel_text: *const c_char,
+    callback: F,
+    account: *mut purple_sys::PurpleAccount,
+    who: *const c_char,
+    conv: *mut purple_sys::PurpleConversation,
+) where
+    F: FnOnce(Option<Cow<str>>) + 'static,
+{
+    let user_data = Box::into_raw(Box::new(callback)) as *mut c_void;
+    let ok_cb_ptr: unsafe extern "C" fn(*mut c_void, *const c_char) =
+        request_input_ok_trampoline::<F>;
+    let cancel_cb_ptr: unsafe extern "C" fn(*mut c_void) = request_input_cancel_trampoline::<F>;
+
+    purple_sys::purple_request_input(
+        connection,
+        title,
+        primary,
+        secondary,
+        default_value,
+        multiline,
+        masked,
+        hint,
+        ok_text,
+        Some(std::mem::transmute(ok_cb_ptr)),
+        cancel_text,
+        Some(std::mem::transmute(cancel_cb_ptr)),
+        account,
+        who,
+        conv,
+        user_data,
+    );
 }
 
-type RequestInputOkTrampoline = unsafe extern "C" fn(*mut c_void, *const i8);
-type RequestInputCancelTrampoline = unsafe extern "C" fn(*mut c_void);
-
-unsafe extern "C" fn request_input_ok_trampoline::<F>(user_data: *mut c_void, value: *const c_char) {
-    let user_data: *mut RequestInputCallback = std::mem::transmute(user_data);
+unsafe extern "C" fn request_input_ok_trampoline<F>(user_data: *mut c_void, value: *const c_char)
+where
+    F: FnOnce(Option<Cow<str>>),
+{
     log::debug!("request_input_ok_trampoline");
     if let Err(error) = catch_unwind(|| {
         let value = CStr::from_ptr(value);
-        let closure: Box<dyn FnOnce(Option<Cow<str>>) + 'static + std::panic::RefUnwindSafe> =
-            Box::from_raw(user_data);
+        let closure = Box::from_raw(user_data as *mut F);
         closure(Some(value.to_string_lossy()));
     }) {
         log::error!("Error in request_input callback: {:?}", error);
     }
 }
 
-unsafe extern "C" fn request_input_cancel_trampoline(user_data: *mut c_void) {
-    let user_data: *mut RequestInputCallback = std::mem::transmute(user_data);
+unsafe extern "C" fn request_input_cancel_trampoline<F>(user_data: *mut c_void)
+where
+    F: FnOnce(Option<Cow<str>>),
+{
     log::debug!("request_input_cancel_trampoline");
     if let Err(error) = catch_unwind(|| {
-        let closure: Box<dyn FnOnce(Option<Cow<str>>) + 'static + std::panic::RefUnwindSafe> =
-            Box::from_raw(user_data);
-        log::info!("Calling closure");
+        let closure = Box::from_raw(user_data as *mut F);
         closure(None);
     }) {
         log::error!("Error in request_input callback: {:?}", error);
     }
-}
-
-
-
-fn get_trampoline_data<F>(f: F) -> *mut c_void
-where F: FnOnce() {
-    Box::into_raw(Box::new(callback)) as *mut c_void
-}
-
-unsafe extern "C" fn trampoline<F>(user_data: *mut c_void)
-where
-    F: FnOnce()
-{
-    let closure = &*(user_data as *mut F);
-    closure();
 }

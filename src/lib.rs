@@ -122,13 +122,8 @@ impl purple::InputHandler for PurpleICQ {
 impl PurpleICQ {
     fn process_message(&self, message: SystemMessage) {
         match message {
-            SystemMessage::ExecAccount {
-                handle,
-                function,
-                result_channel,
-            } => {
-                let ret = function(handle.as_account());
-                result_channel.try_send(ret).unwrap();
+            SystemMessage::ExecAccount { handle, function } => {
+                function(handle.as_account());
             }
             _ => {}
         }

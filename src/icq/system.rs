@@ -77,30 +77,22 @@ impl ICQSystem {
     }
 
     async fn read_code(&mut self, account: &AccountHandle) -> Option<String> {
-        let username = account
-            .exec(
-                |account| {
-                    account.request_input(
-                        Some("SMS Code"),
-                        Some("Enter SMS code"),
-                        Some("You will be sent an SMS message containing your auth code."),
-                        None,
-                        false,
-                        false,
-                        None,
-                        "Login",
-                        "Cancel",
-                        || {},
-                        None,
-                    );
-                    let username = account.get_username().unwrap().into_owned();
-                    log::info!("Hello {:?} from purple thread", username);
-                    Box::new(username)
-                },
-                &mut self.tx,
+        let code = account
+            .proxy(&mut self.tx)
+            .request_input(
+                Some("SMS Code".into()),
+                Some("Enter SMS code".into()),
+                Some("You will be sent an SMS message containing your auth code.".into()),
+                None,
+                false,
+                false,
+                None,
+                "Login".into(),
+                "Cancel".into(),
+                None,
             )
             .await;
-        log::info!("Hello {:?} from icq thread", username);
-        username.ok()
+        log::info!("Code: {:?}", code);
+        code
     }
 }
