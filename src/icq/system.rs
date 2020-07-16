@@ -93,6 +93,6 @@ impl ICQSystem {
             )
             .await;
         log::info!("Code: {:?}", code);
-        code.expect("Failed to receive code")
+        code.ok().flatten()
     }
 }

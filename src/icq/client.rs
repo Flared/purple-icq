@@ -1,21 +1,30 @@
-use reqwest::header::{self, HeaderMap, HeaderValue};
 use serde;
 use serde::{Deserialize, Serialize};
+use surf;
 
 const SEND_CODE_URL: &'static str = "https://u.icq.net/api/v14/rapi/auth/sendCode";
+const LOGIN_WITH_PHONE_NUMBER_URL: &'static str =
+    "https://u.icq.net/api/v14/smsreg/loginWithPhoneNumber.php";
 
-lazy_static::lazy_static! {
-    static ref HEADERS: HeaderMap = {
-        let mut h = HeaderMap::new();
-        h.insert(header::DNT, HeaderValue::from_static("1"));
-        h.insert(header::USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36"));
-        h.insert(header::ORIGIN, HeaderValue::from_static("https://web.icq.com"));
-        h.insert(header::REFERER, HeaderValue::from_static("https://web.icq.com/"));
-        h
-    };
+#[derive(Debug)]
+pub enum Error {
+    SerializationError(serde_json::error::Error),
+    RequestError(surf::Error),
+}
+type Result<T> = std::result::Result<T, Error>;
+
+trait DefaultHeaders {
+    fn with_default_headers(self) -> Self;
 }
 
-type Result<T> = std::result::Result<T, reqwest::Error>;
+impl<T: http_client::HttpClient> DefaultHeaders for surf::Request<T> {
+    fn with_default_headers(self) -> Self {
+        self.set_header("DNT", "1")
+        .set_header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36")
+        .set_header("Origin", "https://web.icq.com")
+        .set_header("Referer", "https://web.icq.com/")
+    }
+}
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -40,19 +49,66 @@ pub struct SendCodeResponseResults {
     pub code_length: i32,
     pub session_id: String,
 }
-
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SendCodeResponse {
     pub results: SendCodeResponseResults,
 }
 
+#[derive(Serialize, Debug)]
+pub struct LoginWithPhoneNumberBody<'a> {
+    pub msisdn: &'a str,
+    pub trans_id: &'a str,
+    pub sms_code: &'a str,
+    pub locale: &'a str,
+    pub k: &'a str,
+    pub platform: &'a str,
+    pub create_account: &'a str,
+    pub client: &'a str,
+    pub r: &'a str,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct LoginWithPhoneNumberResponse {
+    pub response: LoginWithPhoneNumberResponseResponse,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct LoginWithPhoneNumberResponseResponse {
+    pub data: LoginWithPhoneNumberResponseData,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginWithPhoneNumberResponseData {
+    token: LoginWithPhoneNumberResponseToken,
+    host_time: String,
+    session_key: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct LoginWithPhoneNumberResponseToken {
+    a: String,
+}
+
 pub async fn send_code(body: &SendCodeBody<'_>) -> Result<SendCodeResponse> {
-    reqwest::Client::new()
-        .post(SEND_CODE_URL)
-        .json(&body)
-        .send()
-        .await?
-        .json()
+    surf::post(SEND_CODE_URL)
+        .with_default_headers()
+        .body_json(&body)
+        .map_err(Error::SerializationError)?
+        .recv_json()
         .await
+        .map_err(Error::RequestError)
+}
+
+pub async fn login_with_phone_number(
+    body: &LoginWithPhoneNumberBody<'_>,
+) -> Result<LoginWithPhoneNumberResponse> {
+    surf::post(LOGIN_WITH_PHONE_NUMBER_URL)
+        .with_default_headers()
+        .body_json(&body)
+        .map_err(Error::SerializationError)?
+        .recv_json()
+        .await
+        .map_err(Error::RequestError)
 }
