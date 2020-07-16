@@ -1,6 +1,5 @@
 use super::ffi::{AsMutPtr, AsPtr};
 use super::Connection;
-use purple_sys;
 use std::borrow::Cow;
 use std::ffi::CStr;
 use std::ffi::CString;

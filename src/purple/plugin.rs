@@ -1,5 +1,3 @@
-use purple_sys;
-
 pub struct Plugin(*mut purple_sys::PurplePlugin);
 
 impl Plugin {

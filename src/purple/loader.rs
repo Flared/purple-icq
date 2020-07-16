@@ -4,7 +4,6 @@ use log::info;
 use std::marker::PhantomData;
 use std::os::raw::c_void;
 
-use purple_sys;
 use std::ffi::CString;
 
 #[derive(Default)]
