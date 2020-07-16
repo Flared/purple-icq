@@ -16,6 +16,7 @@ lazy_static! {
 
 struct PurpleICQ {
     system: ICQSystemHandle,
+    input_handle: Option<u32>,
 }
 
 impl purple::PrplPlugin for PurpleICQ {
@@ -23,7 +24,10 @@ impl purple::PrplPlugin for PurpleICQ {
     fn new() -> Self {
         env_logger::init();
         let system = icq::system::spawn();
-        Self { system }
+        Self {
+            system,
+            input_handle: None,
+        }
     }
     fn register(&self, context: RegisterContext<Self>) -> RegisterContext<Self> {
         let info = purple::PrplInfo {
@@ -84,10 +88,10 @@ impl purple::StatusTypeHandler for PurpleICQ {
 impl purple::LoadHandler for PurpleICQ {
     fn load(&mut self, _plugin: &purple::Plugin) -> bool {
         use std::os::unix::io::AsRawFd;
-        self.enable_input(
+        self.input_handle = Some(self.enable_input(
             self.system.input_rx.as_raw_fd(),
             purple::PurpleInputCondition::PURPLE_INPUT_READ,
-        );
+        ));
         true
     }
 }
@@ -114,7 +118,12 @@ impl purple::InputHandler for PurpleICQ {
         match self.system.rx.try_recv() {
             Ok(message) => self.process_message(message),
             Err(async_std::sync::TryRecvError::Empty) => log::error!("Expected message, but empty"),
-            Err(async_std::sync::TryRecvError::Disconnected) => log::error!("System disconnected"),
+            Err(async_std::sync::TryRecvError::Disconnected) => {
+                log::error!("System disconnected");
+                if let Some(input_handle) = self.input_handle {
+                    self.disable_input(input_handle);
+                }
+            }
         };
     }
 }

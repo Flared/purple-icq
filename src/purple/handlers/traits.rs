@@ -33,4 +33,8 @@ pub trait InputHandler {
             this.input(fd, cond);
         })
     }
+
+    fn disable_input(&self, input_handle: u32) -> bool {
+        unsafe { purple_sys::purple_input_remove(input_handle) != 0 }
+    }
 }

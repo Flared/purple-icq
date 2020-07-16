@@ -1,6 +1,7 @@
 use serde;
 use serde::{Deserialize, Serialize};
 use surf;
+use surf::middleware::HttpClient;
 
 const SEND_CODE_URL: &'static str = "https://u.icq.net/api/v14/rapi/auth/sendCode";
 const LOGIN_WITH_PHONE_NUMBER_URL: &'static str =
@@ -17,7 +18,7 @@ trait DefaultHeaders {
     fn with_default_headers(self) -> Self;
 }
 
-impl<T: http_client::HttpClient> DefaultHeaders for surf::Request<T> {
+impl<T: HttpClient> DefaultHeaders for surf::Request<T> {
     fn with_default_headers(self) -> Self {
         self.set_header("DNT", "1")
         .set_header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36")
