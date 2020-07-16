@@ -1,10 +1,9 @@
 use super::handlers::entrypoints;
 use crate::purple::PrplPlugin;
 use log::info;
+use std::ffi::CString;
 use std::marker::PhantomData;
 use std::os::raw::c_void;
-
-use std::ffi::CString;
 
 #[derive(Default)]
 pub struct RegisterContext<P> {

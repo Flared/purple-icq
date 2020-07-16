@@ -1,15 +1,15 @@
-use serde;
 use serde::{Deserialize, Serialize};
-use surf;
 use surf::middleware::HttpClient;
 
-const SEND_CODE_URL: &'static str = "https://u.icq.net/api/v14/rapi/auth/sendCode";
-const LOGIN_WITH_PHONE_NUMBER_URL: &'static str =
+const SEND_CODE_URL: &str = "https://u.icq.net/api/v14/rapi/auth/sendCode";
+const LOGIN_WITH_PHONE_NUMBER_URL: &str =
     "https://u.icq.net/api/v14/smsreg/loginWithPhoneNumber.php";
 
 #[derive(Debug)]
 pub enum Error {
-    SerializationError(serde_json::error::Error),
+    JsonSerializationError(serde_json::error::Error),
+    UrlEncodedSerializationError(serde_urlencoded::ser::Error),
+    DeserializationError(serde_json::error::Error),
     RequestError(surf::Error),
 }
 type Result<T> = std::result::Result<T, Error>;
@@ -82,34 +82,64 @@ pub struct LoginWithPhoneNumberResponseResponse {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginWithPhoneNumberResponseData {
-    token: LoginWithPhoneNumberResponseToken,
-    host_time: String,
-    session_key: String,
+    pub token: LoginWithPhoneNumberResponseToken,
+    pub host_time: u32,
+    pub session_key: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct LoginWithPhoneNumberResponseToken {
-    a: String,
+    pub a: String,
 }
 
 pub async fn send_code(body: &SendCodeBody<'_>) -> Result<SendCodeResponse> {
-    surf::post(SEND_CODE_URL)
-        .with_default_headers()
-        .body_json(&body)
-        .map_err(Error::SerializationError)?
-        .recv_json()
-        .await
-        .map_err(Error::RequestError)
+    json_api(SEND_CODE_URL, body).await
 }
 
 pub async fn login_with_phone_number(
     body: &LoginWithPhoneNumberBody<'_>,
 ) -> Result<LoginWithPhoneNumberResponse> {
-    surf::post(LOGIN_WITH_PHONE_NUMBER_URL)
+    form_api(LOGIN_WITH_PHONE_NUMBER_URL, body).await
+}
+
+async fn form_api<T: serde::Serialize, U: serde::de::DeserializeOwned>(
+    url: &str,
+    body: &T,
+) -> Result<U> {
+    log::debug!(
+        "POST {} <- {}",
+        url,
+        serde_urlencoded::to_string(body).unwrap()
+    );
+    let mut res = surf::post(url)
+        .with_default_headers()
+        .body_form(&body)
+        .map_err(Error::UrlEncodedSerializationError)?
+        .await
+        .map_err(Error::RequestError)?;
+    let body = res.body_string().await;
+    log::debug!("POST {} -> {} - {:?}", url, res.status(), body);
+    let body = body.map_err(Error::RequestError)?;
+    serde_json::from_str(&body).map_err(Error::DeserializationError)
+}
+
+async fn json_api<T: serde::Serialize, U: serde::de::DeserializeOwned>(
+    url: &str,
+    body: &T,
+) -> Result<U> {
+    log::debug!(
+        "POST {} <- {}",
+        url,
+        serde_json::to_string_pretty(body).unwrap()
+    );
+    let mut res = surf::post(url)
         .with_default_headers()
         .body_json(&body)
-        .map_err(Error::SerializationError)?
-        .recv_json()
+        .map_err(Error::JsonSerializationError)?
         .await
-        .map_err(Error::RequestError)
+        .map_err(Error::RequestError)?;
+    let body = res.body_string().await;
+    log::debug!("POST {} -> {} - {:?}", url, res.status(), body);
+    let body = body.map_err(Error::RequestError)?;
+    serde_json::from_str(&body).map_err(Error::DeserializationError)
 }

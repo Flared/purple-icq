@@ -1,5 +1,4 @@
 use super::Plugin;
-use purple_sys;
 use std::ptr::NonNull;
 pub struct Connection(NonNull<purple_sys::PurpleConnection>);
 

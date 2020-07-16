@@ -1,11 +1,12 @@
 use super::client;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::time::SystemTime;
 
-const LANGUAGE: &'static str = "en-US";
-const KEY: &'static str = "ic1rtwz1s1Hj1O0r";
-const LOCALE: &'static str = "en-US";
+const LANGUAGE: &str = "en-US";
+const KEY: &str = "ic1rtwz1s1Hj1O0r";
+const LOCALE: &str = "en-US";
 
 #[derive(Debug)]
 pub enum Error {
@@ -15,10 +16,19 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub struct RegisteredAccountInfo {}
+#[derive(Debug)]
+pub struct SessionInfo {}
 
-pub async fn register<'a, F, Fut>(
-    phone_number: &'a str,
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct RegisteredAccountInfo {
+    pub session_id: String,
+    pub session_key: String,
+    pub token: String,
+    pub host_time: u32,
+}
+
+pub async fn register<F, Fut>(
+    phone_number: &str,
     code_validator: F,
 ) -> Result<RegisteredAccountInfo>
 where
@@ -38,6 +48,8 @@ where
     let code_response = client::send_code(&send_code_body)
         .await
         .map_err(Error::ApiError)?;
+    log::info!("SendCode response: {:?}", code_response);
+
     let code = code_validator().await.ok_or(Error::MissingCode)?;
 
     let login_with_phone_number_body = client::LoginWithPhoneNumberBody {
@@ -55,7 +67,16 @@ where
         .await
         .map_err(Error::ApiError)?;
     log::info!("Login response: {:?}", login_response);
-    Ok(RegisteredAccountInfo {})
+    Ok(RegisteredAccountInfo {
+        session_id: code_response.results.session_id,
+        session_key: login_response.response.data.session_key,
+        host_time: login_response.response.data.host_time,
+        token: login_response.response.data.token.a,
+    })
+}
+
+pub fn start_session(_registered_account_info: &RegisteredAccountInfo) -> Result<SessionInfo> {
+    Ok(SessionInfo {})
 }
 
 fn request_id() -> String {
@@ -67,6 +88,6 @@ fn request_id() -> String {
 }
 
 fn random_id() -> String {
-    let random_id = rand::thread_rng().gen_range(10000, 100000);
+    let random_id = rand::thread_rng().gen_range(10_000, 100_000);
     random_id.to_string()
 }

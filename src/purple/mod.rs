@@ -7,7 +7,7 @@ pub use self::status_type::{PurpleStatusPrimitive, StatusType};
 pub use purple_sys::PurpleInputCondition;
 
 use std::os::raw::c_void;
-mod account;
+pub mod account;
 mod connection;
 mod ffi;
 mod handlers;

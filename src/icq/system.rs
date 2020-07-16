@@ -3,7 +3,6 @@ use crate::messages::{
     AccountHandle, AccountInfo, FdSender, ICQSystemHandle, PurpleMessage, SystemMessage,
 };
 use async_std::sync::{channel, Receiver};
-use log;
 
 const CHANNEL_CAPACITY: usize = 1024;
 
@@ -63,16 +62,52 @@ impl ICQSystem {
 
     async fn login(&mut self, account_info: AccountInfo) {
         log::debug!("login");
-        match protocol::register(&account_info.phone_number, || {
-            log::debug!("read_code");
-            self.read_code(&account_info.account)
-        })
-        .await
-        {
-            Ok(_) => (),
-            Err(error) => {
-                log::error!("Failed to register account: {:?}", error);
+        let mut registered_account_info = {
+            account_info
+                .account
+                .proxy(&mut self.tx)
+                .exec(|account| {
+                    let token = account.get_string("token", "");
+                    if token == "" {
+                        None
+                    } else {
+                        Some(protocol::RegisteredAccountInfo {
+                            token,
+                            session_id: account.get_string("session_id", ""),
+                            session_key: account.get_string("session_key", ""),
+                            host_time: account.get_int("host_time", 0) as u32,
+                        })
+                    }
+                })
+                .await
+        };
+        if registered_account_info.is_none() {
+            match protocol::register(&account_info.phone_number, || {
+                log::debug!("read_code");
+                self.read_code(&account_info.account)
+            })
+            .await
+            {
+                Ok(info) => {
+                    account_info
+                        .account
+                        .proxy(&mut self.tx)
+                        .set_settings(info.clone())
+                        .await
+                        .expect("Failed to write settings");
+                    registered_account_info = Some(info);
+                }
+                Err(error) => {
+                    log::error!("Failed to register account: {:?}", error);
+                }
             }
+        }
+
+        log::debug!("Registered account info: {:?}", registered_account_info);
+
+        if let Some(registered_account_info) = registered_account_info {
+            let session_info = protocol::start_session(&registered_account_info);
+            log::debug!("Session info: {:?}", session_info);
         }
     }
 
@@ -93,6 +128,6 @@ impl ICQSystem {
             )
             .await;
         log::info!("Code: {:?}", code);
-        code.ok().flatten()
+        code
     }
 }

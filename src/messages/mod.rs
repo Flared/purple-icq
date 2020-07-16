@@ -20,7 +20,7 @@ impl<T> FdSender<T> {
     pub async fn send(&mut self, item: T) {
         self.channel_sender.send(item).await;
         use std::io::Write;
-        self.os_sender.write(&[0]).unwrap();
+        self.os_sender.write_all(&[0]).unwrap();
     }
 }
 
