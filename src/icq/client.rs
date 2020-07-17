@@ -93,16 +93,16 @@ pub struct LoginWithPhoneNumberResponseToken {
 }
 
 pub async fn send_code(body: &SendCodeBody<'_>) -> Result<SendCodeResponse> {
-    json_api(SEND_CODE_URL, body).await
+    post_json(SEND_CODE_URL, body).await
 }
 
 pub async fn login_with_phone_number(
     body: &LoginWithPhoneNumberBody<'_>,
 ) -> Result<LoginWithPhoneNumberResponse> {
-    form_api(LOGIN_WITH_PHONE_NUMBER_URL, body).await
+    post_form(LOGIN_WITH_PHONE_NUMBER_URL, body).await
 }
 
-async fn form_api<T: serde::Serialize, U: serde::de::DeserializeOwned>(
+async fn post_form<T: serde::Serialize, U: serde::de::DeserializeOwned>(
     url: &str,
     body: &T,
 ) -> Result<U> {
@@ -123,7 +123,7 @@ async fn form_api<T: serde::Serialize, U: serde::de::DeserializeOwned>(
     serde_json::from_str(&body).map_err(Error::DeserializationError)
 }
 
-async fn json_api<T: serde::Serialize, U: serde::de::DeserializeOwned>(
+async fn post_json<T: serde::Serialize, U: serde::de::DeserializeOwned>(
     url: &str,
     body: &T,
 ) -> Result<U> {

@@ -63,15 +63,22 @@ impl ICQSystem {
                 .account
                 .proxy(&mut self.tx)
                 .exec(|account| {
-                    let token = account.get_string("token", "");
+                    let token =
+                        account.get_string(protocol::RegistrationData::TOKEN_SETTING_KEY, "");
                     if token == "" {
                         None
                     } else {
-                        Some(protocol::RegisteredAccountInfo {
+                        Some(protocol::RegistrationData {
                             token,
-                            session_id: account.get_string("session_id", ""),
-                            session_key: account.get_string("session_key", ""),
-                            host_time: account.get_int("host_time", 0) as u32,
+                            session_id: account
+                                .get_string(protocol::RegistrationData::SESSION_ID_SETTING_KEY, ""),
+                            session_key: account.get_string(
+                                protocol::RegistrationData::SESSION_KEY_SETTING_KEY,
+                                "",
+                            ),
+                            host_time: account
+                                .get_int(protocol::RegistrationData::HOST_TIME_SETTING_KEY, 0)
+                                as u32,
                         })
                     }
                 })
@@ -100,18 +107,21 @@ impl ICQSystem {
         }
 
         log::debug!("Registered account info: {:?}", registered_account_info);
-
-        if let Some(registered_account_info) = registered_account_info {
-            let session_info = protocol::start_session(&registered_account_info);
-            log::debug!("Session info: {:?}", session_info);
+        if registered_account_info.is_none() {
+            return;
         }
 
-        account_info
-            .account
-            .get_connection()
-            .proxy(&mut self.tx)
-            .set_state(purple::PurpleConnectionState::PURPLE_CONNECTING)
-            .await;
+        if let Some(registered_account_info) = registered_account_info {
+            account_info
+                .account
+                .get_connection()
+                .proxy(&mut self.tx)
+                .set_state(purple::PurpleConnectionState::PURPLE_CONNECTING)
+                .await;
+
+            let session_info = protocol::start_session(&registered_account_info).await;
+            log::debug!("Session info: {:?}", session_info);
+        }
     }
 
     async fn read_code(&mut self, account: &AccountHandle) -> Option<String> {

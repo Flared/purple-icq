@@ -20,17 +20,21 @@ type Result<T> = std::result::Result<T, Error>;
 pub struct SessionInfo {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct RegisteredAccountInfo {
+pub struct RegistrationData {
     pub session_id: String,
     pub session_key: String,
     pub token: String,
     pub host_time: u32,
 }
 
-pub async fn register<F, Fut>(
-    phone_number: &str,
-    code_validator: F,
-) -> Result<RegisteredAccountInfo>
+impl RegistrationData {
+    pub const SESSION_ID_SETTING_KEY: &'static str = "session_id";
+    pub const SESSION_KEY_SETTING_KEY: &'static str = "session_id";
+    pub const TOKEN_SETTING_KEY: &'static str = "session_id";
+    pub const HOST_TIME_SETTING_KEY: &'static str = "session_id";
+}
+
+pub async fn register<F, Fut>(phone_number: &str, code_validator: F) -> Result<RegistrationData>
 where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Option<String>>,
@@ -67,7 +71,7 @@ where
         .await
         .map_err(Error::ApiError)?;
     log::info!("Login response: {:?}", login_response);
-    Ok(RegisteredAccountInfo {
+    Ok(RegistrationData {
         session_id: code_response.results.session_id,
         session_key: login_response.response.data.session_key,
         host_time: login_response.response.data.host_time,
@@ -75,7 +79,7 @@ where
     })
 }
 
-pub fn start_session(_registered_account_info: &RegisteredAccountInfo) -> Result<SessionInfo> {
+pub async fn start_session(_registered_account_info: &RegistrationData) -> Result<SessionInfo> {
     Ok(SessionInfo {})
 }
 
