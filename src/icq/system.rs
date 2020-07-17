@@ -2,6 +2,7 @@ use super::protocol;
 use crate::messages::{
     AccountHandle, AccountInfo, FdSender, ICQSystemHandle, PurpleMessage, SystemMessage,
 };
+use crate::purple;
 use async_std::sync::{channel, Receiver};
 
 const CHANNEL_CAPACITY: usize = 1024;
@@ -52,12 +53,7 @@ impl ICQSystem {
             match purple_message {
                 PurpleMessage::Login(account_info) => self.login(account_info).await,
             }
-            self.ping().await
         }
-    }
-
-    async fn ping(&mut self) {
-        self.tx.send(SystemMessage::Ping).await;
     }
 
     async fn login(&mut self, account_info: AccountInfo) {
@@ -109,6 +105,13 @@ impl ICQSystem {
             let session_info = protocol::start_session(&registered_account_info);
             log::debug!("Session info: {:?}", session_info);
         }
+
+        account_info
+            .account
+            .get_connection()
+            .proxy(&mut self.tx)
+            .set_state(purple::PurpleConnectionState::PURPLE_CONNECTING)
+            .await;
     }
 
     async fn read_code(&mut self, account: &AccountHandle) -> Option<String> {

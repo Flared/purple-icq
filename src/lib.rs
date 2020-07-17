@@ -130,8 +130,21 @@ impl purple::InputHandler for PurpleICQ {
 
 impl PurpleICQ {
     fn process_message(&self, message: SystemMessage) {
-        if let SystemMessage::ExecAccount { handle, function } = message {
-            function(handle.as_account());
+        match message {
+            SystemMessage::ExecAccount { handle, function } => {
+                function(unsafe { handle.as_account() });
+            }
+            SystemMessage::ExecConnection {
+                handle,
+                function,
+                result_sender,
+            } => unsafe {
+                result_sender
+                    .try_send(handle.as_connection().map(|c| {
+                        function(c);
+                    }))
+                    .expect("Failed to send result");
+            },
         }
     }
 }

@@ -1,6 +1,11 @@
-use super::{FdSender, SystemMessage};
-use crate::purple::{account, Account};
+use super::connection_handle::ConnectionProxy;
+use super::{AsConnection, FdSender, SystemMessage};
+use crate::purple::{account, Account, Connection};
 use async_std::sync::channel;
+
+#[derive(Debug, Clone)]
+pub struct AccountConnectionHandle(AccountHandle);
+
 #[derive(Debug, Clone)]
 pub struct AccountHandle(*mut purple_sys::PurpleAccount);
 
@@ -8,14 +13,19 @@ pub struct AccountHandle(*mut purple_sys::PurpleAccount);
 unsafe impl Send for AccountHandle {}
 
 impl AccountHandle {
-    pub fn as_account(&self) -> Account {
-        unsafe { Account::from_raw(self.0) }
+    pub unsafe fn as_account(&self) -> Account {
+        Account::from_raw(self.0)
     }
+
     pub fn proxy<'a>(&self, sender: &'a mut FdSender<SystemMessage>) -> AccountProxy<'a> {
         AccountProxy {
             handle: self.clone(),
             sender,
         }
+    }
+
+    pub fn get_connection(&self) -> AccountConnectionHandle {
+        AccountConnectionHandle(self.clone())
     }
 }
 
@@ -104,5 +114,20 @@ impl<'a> AccountProxy<'a> {
 impl std::convert::From<&Account> for AccountHandle {
     fn from(account: &Account) -> Self {
         Self(account.as_ptr())
+    }
+}
+
+impl AccountConnectionHandle {
+    pub fn proxy<'a>(&self, sender: &'a mut FdSender<SystemMessage>) -> ConnectionProxy<'a, Self> {
+        ConnectionProxy {
+            handle: self.clone(),
+            sender,
+        }
+    }
+}
+
+impl AsConnection for AccountConnectionHandle {
+    unsafe fn as_connection(&self) -> Option<Connection> {
+        self.0.as_account().get_connection()
     }
 }
