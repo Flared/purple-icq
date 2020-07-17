@@ -4,8 +4,12 @@ pub use self::handlers::traits::*;
 pub use self::loader::{PrplInfo, PrplPluginLoader, RegisterContext};
 pub use self::plugin::Plugin;
 pub use self::status_type::{PurpleStatusPrimitive, StatusType};
+pub use purple_sys::PurpleInputCondition;
+
+use std::os::raw::c_void;
 mod account;
 mod connection;
+mod ffi;
 mod handlers;
 mod loader;
 mod plugin;
@@ -31,4 +35,20 @@ macro_rules! purple_prpl_plugin {
             plugin.init()
         }
     };
+}
+
+pub fn input_add<F>(fd: i32, cond: PurpleInputCondition, callback: F) -> u32
+where
+    F: Fn(i32, PurpleInputCondition) + 'static,
+{
+    let user_data = Box::into_raw(Box::new(callback)) as *mut c_void;
+    unsafe { purple_sys::purple_input_add(fd, cond, Some(trampoline::<F>), user_data) }
+}
+
+unsafe extern "C" fn trampoline<F>(user_data: *mut c_void, df: i32, cond: PurpleInputCondition)
+where
+    F: Fn(i32, PurpleInputCondition),
+{
+    let closure = &*(user_data as *mut F);
+    closure(df, cond);
 }

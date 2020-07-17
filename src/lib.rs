@@ -1,23 +1,33 @@
+mod glib;
+mod icq;
 #[macro_use]
 mod purple;
-mod glib;
+mod messages;
 
 use lazy_static::lazy_static;
+use messages::{AccountHandle, AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
 use std::ffi::{CStr, CString};
+use std::io::Read;
 
 lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
 }
 
-struct PurpleICQ(String);
+struct PurpleICQ {
+    system: ICQSystemHandle,
+    input_handle: Option<u32>,
+}
 
 impl purple::PrplPlugin for PurpleICQ {
     type Plugin = Self;
     fn new() -> Self {
         env_logger::init();
-
-        Self("Hello".into())
+        let system = icq::system::spawn();
+        Self {
+            system,
+            input_handle: None,
+        }
     }
     fn register(&self, context: RegisterContext<Self>) -> RegisterContext<Self> {
         let info = purple::PrplInfo {
@@ -41,8 +51,15 @@ impl purple::PrplPlugin for PurpleICQ {
 }
 
 impl purple::LoginHandler for PurpleICQ {
-    fn login(&self, _account: &Account) {
-        println!("Login");
+    fn login(&self, account: &Account) {
+        let phone_number = account.get_username().unwrap().into();
+        self.system
+            .tx
+            .try_send(PurpleMessage::Login(AccountInfo::new(
+                AccountHandle::from(account),
+                phone_number,
+            )))
+            .unwrap();
     }
 }
 impl purple::CloseHandler for PurpleICQ {
@@ -69,8 +86,12 @@ impl purple::StatusTypeHandler for PurpleICQ {
     }
 }
 impl purple::LoadHandler for PurpleICQ {
-    fn load(&self, _plugin: &purple::Plugin) -> bool {
-        println!("load {}", self.0);
+    fn load(&mut self, _plugin: &purple::Plugin) -> bool {
+        use std::os::unix::io::AsRawFd;
+        self.input_handle = Some(self.enable_input(
+            self.system.input_rx.as_raw_fd(),
+            purple::PurpleInputCondition::PURPLE_INPUT_READ,
+        ));
         true
     }
 }
@@ -82,5 +103,40 @@ impl purple::ListIconHandler for PurpleICQ {
 }
 
 impl purple::ChatInfoHandler for PurpleICQ {}
+
+impl purple::InputHandler for PurpleICQ {
+    fn input(&mut self, _fd: i32, _cond: purple::PurpleInputCondition) {
+        log::debug!("Input");
+        // Consume the byte from the input pipe.
+        let mut buf = [0; 1];
+        self.system
+            .input_rx
+            .read(&mut buf)
+            .expect("Failed to read input pipe");
+
+        // Consume the actual message.
+        match self.system.rx.try_recv() {
+            Ok(message) => self.process_message(message),
+            Err(async_std::sync::TryRecvError::Empty) => log::error!("Expected message, but empty"),
+            Err(async_std::sync::TryRecvError::Disconnected) => {
+                log::error!("System disconnected");
+                if let Some(input_handle) = self.input_handle {
+                    self.disable_input(input_handle);
+                }
+            }
+        };
+    }
+}
+
+impl PurpleICQ {
+    fn process_message(&self, message: SystemMessage) {
+        match message {
+            SystemMessage::ExecAccount { handle, function } => {
+                function(handle.as_account());
+            }
+            _ => {}
+        }
+    }
+}
 
 purple_prpl_plugin!(PurpleICQ);

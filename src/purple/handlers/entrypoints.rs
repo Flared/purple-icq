@@ -60,7 +60,7 @@ pub extern "C" fn close<P: traits::CloseHandler>(
 ) {
     if let Err(error) = catch_unwind(|| {
         debug!("close");
-        let connection = unsafe { Connection::from_raw(connection_ptr) };
+        let connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
         let plugin = connection
             .get_protocol_plugin()
             .expect("No plugin found for connection");
