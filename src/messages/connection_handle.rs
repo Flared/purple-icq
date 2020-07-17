@@ -1,5 +1,5 @@
 use super::{FdSender, SystemMessage};
-use crate::purple::{Connection, PurpleConnectionState};
+use crate::purple::{Connection, PurpleConnectionError, PurpleConnectionState};
 use async_std::sync::channel;
 
 pub trait AsConnection {
@@ -47,6 +47,15 @@ impl<'a, C: AsConnection + Clone + Send + 'static> ConnectionProxy<'a, C> {
 
     pub async fn set_state(&mut self, state: PurpleConnectionState) -> Option<()> {
         self.exec_no_return(move |connection| connection.set_state(state))
+            .await
+    }
+
+    pub async fn error_reason(
+        &mut self,
+        reason: PurpleConnectionError,
+        description: String,
+    ) -> Option<()> {
+        self.exec_no_return(move |connection| connection.error_reason(reason, &description))
             .await
     }
 }

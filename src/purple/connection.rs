@@ -1,5 +1,6 @@
 use super::Plugin;
 use crate::purple;
+use std::ffi::CString;
 use std::ptr::NonNull;
 pub struct Connection(NonNull<purple_sys::PurpleConnection>);
 
@@ -24,5 +25,16 @@ impl Connection {
     pub fn set_state(&self, state: purple::PurpleConnectionState) {
         log::info!("Connection state: {:?}", state);
         unsafe { purple_sys::purple_connection_set_state(self.0.as_ptr(), state) };
+    }
+
+    pub fn error_reason(&self, reason: purple::PurpleConnectionError, description: &str) {
+        let c_description = CString::new(description).unwrap();
+        unsafe {
+            purple_sys::purple_connection_error_reason(
+                self.0.as_ptr(),
+                reason,
+                c_description.as_ptr(),
+            );
+        }
     }
 }
