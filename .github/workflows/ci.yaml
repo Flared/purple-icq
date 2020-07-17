@@ -22,9 +22,9 @@ jobs:
       run: |
         bash -c '\
           sudo apt-get update \
-          && sudo apt-get install -y intltool libgtk2.0-dev libxss-dev libnss3-dev \
+          && sudo apt-get install -y intltool libglib2.0-dev libnss3-dev \
                                      libltdl3-dev libxml2-dev libxml-parser-perl \
-                                     libsasl2-dev libsqlite3-dev libidn11-dev \
+                                     libsqlite3-dev libidn11-dev \
           && hg clone https://keep.imfreedom.org/pidgin/pidgin \
           && cd pidgin \
           && hg up v2.13.0 \
