@@ -5,7 +5,6 @@ use std::panic::catch_unwind;
 
 use super::super::{Account, Connection, Plugin};
 use super::traits;
-use purple_sys;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 
