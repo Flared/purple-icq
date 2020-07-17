@@ -4,6 +4,7 @@ use surf::middleware::HttpClient;
 const SEND_CODE_URL: &str = "https://u.icq.net/api/v14/rapi/auth/sendCode";
 const LOGIN_WITH_PHONE_NUMBER_URL: &str =
     "https://u.icq.net/api/v14/smsreg/loginWithPhoneNumber.php";
+const START_SESSION_URL: &str = "https://u.icq.net/api/v14/wim/aim/startSession?";
 
 #[derive(Debug)]
 pub enum Error {
@@ -70,14 +71,16 @@ pub struct LoginWithPhoneNumberBody<'a> {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct LoginWithPhoneNumberResponse {
-    pub response: LoginWithPhoneNumberResponseResponse,
+pub struct WebIcqResponse<T> {
+    pub response: WebIcqData<T>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct LoginWithPhoneNumberResponseResponse {
-    pub data: LoginWithPhoneNumberResponseData,
+pub struct WebIcqData<T> {
+    pub data: T,
 }
+
+type LoginWithPhoneNumberResponse = WebIcqResponse<LoginWithPhoneNumberResponseData>;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -92,6 +95,41 @@ pub struct LoginWithPhoneNumberResponseToken {
     pub a: String,
 }
 
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct StartSessionBody<'a> {
+    pub a: &'a str,
+    pub ts: u32,
+    pub k: &'a str,
+    pub view: &'a str,
+    pub client_name: &'a str,
+    pub language: &'a str,
+    pub device_id: &'a str,
+    pub session_timeout: u32,
+    pub assert_caps: &'a str,
+    pub interest_caps: &'a str,
+    pub events: &'a str,
+    pub include_presence_fields: &'a str,
+}
+
+#[derive(Serialize, Debug)]
+struct StartSessionFormBody {}
+
+type StartSessionResponse = WebIcqResponse<StartSessionResponseData>;
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct StartSessionResponseData {
+    pub aimsid: String,
+    pub my_info: StartSessionResponseMyInfo,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct StartSessionResponseMyInfo {
+    pub aim_id: String,
+}
+
 pub async fn send_code(body: &SendCodeBody<'_>) -> Result<SendCodeResponse> {
     post_json(SEND_CODE_URL, body).await
 }
@@ -100,6 +138,12 @@ pub async fn login_with_phone_number(
     body: &LoginWithPhoneNumberBody<'_>,
 ) -> Result<LoginWithPhoneNumberResponse> {
     post_form(LOGIN_WITH_PHONE_NUMBER_URL, body).await
+}
+
+pub async fn start_session(body: &StartSessionBody<'_>) -> Result<StartSessionResponse> {
+    let params = serde_urlencoded::to_string(body).map_err(Error::UrlEncodedSerializationError)?;
+    let url = START_SESSION_URL.to_string() + &params;
+    post_form(&url, &StartSessionFormBody {}).await
 }
 
 async fn post_form<T: serde::Serialize, U: serde::de::DeserializeOwned>(

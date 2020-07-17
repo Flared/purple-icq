@@ -3,10 +3,14 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::time::SystemTime;
+use uuid::Uuid;
 
 const LANGUAGE: &str = "en-US";
 const KEY: &str = "ic1rtwz1s1Hj1O0r";
 const LOCALE: &str = "en-US";
+const CAPS: &str = "094613584C7F11D18222444553540000,0946135C4C7F11D18222444553540000,0946135b4c7f11d18222444553540000,0946135E4C7F11D18222444553540000,AABC2A1AF270424598B36993C6231952,1f99494e76cbc880215d6aeab8e42268";
+const EVENTS: &str = "myInfo,presence,buddylist,typing,hiddenChat,hist,mchat,sentIM,imState,dataIM,offlineIM,userAddedToBuddyList,service,lifestream,apps,permitDeny,diff,webrtcMsg";
+const PRESENCE_FIELDS: &str = "aimId,displayId,friendly,friendlyName,state,userType,statusMsg,statusTime,lastseen,ssl,mute,abContactName,abPhoneNumber,abPhones,official,quiet,autoAddition,largeIconId,nick,userState";
 
 #[derive(Debug)]
 pub enum Error {
@@ -17,7 +21,11 @@ pub enum Error {
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
-pub struct SessionInfo {}
+pub struct SessionInfo {
+    pub registration_data: RegistrationData,
+    pub aim_id: String,
+    pub aim_sid: String,
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RegistrationData {
@@ -29,9 +37,9 @@ pub struct RegistrationData {
 
 impl RegistrationData {
     pub const SESSION_ID_SETTING_KEY: &'static str = "session_id";
-    pub const SESSION_KEY_SETTING_KEY: &'static str = "session_id";
-    pub const TOKEN_SETTING_KEY: &'static str = "session_id";
-    pub const HOST_TIME_SETTING_KEY: &'static str = "session_id";
+    pub const SESSION_KEY_SETTING_KEY: &'static str = "session_key";
+    pub const TOKEN_SETTING_KEY: &'static str = "token";
+    pub const HOST_TIME_SETTING_KEY: &'static str = "host_time";
 }
 
 pub async fn register<F, Fut>(phone_number: &str, code_validator: F) -> Result<RegistrationData>
@@ -79,19 +87,49 @@ where
     })
 }
 
-pub async fn start_session(_registered_account_info: &RegistrationData) -> Result<SessionInfo> {
-    Ok(SessionInfo {})
+pub async fn start_session(registration_data: &RegistrationData) -> Result<SessionInfo> {
+    let start_session_body = client::StartSessionBody {
+        a: &registration_data.token,
+        ts: timestamp(),
+        k: KEY,
+        view: "online",
+        client_name: "webicq",
+        language: LANGUAGE,
+        device_id: &device_id(),
+        session_timeout: 2592000,
+        assert_caps: CAPS,
+        interest_caps: "",
+        events: EVENTS,
+        include_presence_fields: PRESENCE_FIELDS,
+    };
+    let start_session_response = client::start_session(&start_session_body)
+        .await
+        .map_err(Error::ApiError)?;
+    Ok(SessionInfo {
+        registration_data: registration_data.clone(),
+        aim_id: start_session_response.response.data.my_info.aim_id,
+        aim_sid: start_session_response.response.data.aimsid,
+    })
 }
 
 fn request_id() -> String {
-    let timestamp = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    format!("{}-{}", random_id(), timestamp)
+    format!("{}-{}", random_id(), timestamp())
 }
 
 fn random_id() -> String {
     let random_id = rand::thread_rng().gen_range(10_000, 100_000);
     random_id.to_string()
+}
+
+fn timestamp() -> u32 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32
+}
+
+fn device_id() -> String {
+    Uuid::new_v5(&Uuid::NAMESPACE_DNS, random_id().as_bytes())
+        .to_hyphenated()
+        .to_string()
 }

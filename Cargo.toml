@@ -23,6 +23,7 @@ serde_json = "1.0"
 serde_urlencoded = "0.6"
 rand = "0.7"
 surf = "2.0.0-alpha"
+uuid = { version = "0.8", features = ["v5"] }
 
 [dependencies.async-std]
 version = "1.6"
