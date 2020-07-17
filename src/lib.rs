@@ -111,7 +111,7 @@ impl purple::InputHandler for PurpleICQ {
         let mut buf = [0; 1];
         self.system
             .input_rx
-            .read(&mut buf)
+            .read_exact(&mut buf)
             .expect("Failed to read input pipe");
 
         // Consume the actual message.
@@ -132,9 +132,19 @@ impl PurpleICQ {
     fn process_message(&self, message: SystemMessage) {
         match message {
             SystemMessage::ExecAccount { handle, function } => {
-                function(handle.as_account());
+                function(unsafe { handle.as_account() });
             }
-            _ => {}
+            SystemMessage::ExecConnection {
+                handle,
+                function,
+                result_sender,
+            } => unsafe {
+                result_sender
+                    .try_send(handle.as_connection().map(|c| {
+                        function(c);
+                    }))
+                    .expect("Failed to send result");
+            },
         }
     }
 }

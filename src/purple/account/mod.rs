@@ -5,6 +5,9 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 use std::panic::catch_unwind;
+
+pub mod settings;
+
 pub struct Account(*mut purple_sys::PurpleAccount);
 
 impl Account {
@@ -34,6 +37,54 @@ impl Account {
         }
     }
 
+    #[allow(dead_code)]
+    pub fn get_bool(&self, key: &str, default_value: bool) -> bool {
+        let c_key = CString::new(key).unwrap();
+        unsafe {
+            purple_sys::purple_account_get_bool(self.0, c_key.as_ptr(), default_value as i32) != 0
+        }
+    }
+    pub fn get_int(&self, key: &str, default_value: i32) -> i32 {
+        let c_key = CString::new(key).unwrap();
+        unsafe { purple_sys::purple_account_get_int(self.0, c_key.as_ptr(), default_value) }
+    }
+    pub fn get_string(&self, key: &str, default_value: &str) -> String {
+        let c_key = CString::new(key).unwrap();
+        let c_default_value = CString::new(default_value).unwrap();
+        let c_value = unsafe {
+            purple_sys::purple_account_get_string(self.0, c_key.as_ptr(), c_default_value.as_ptr())
+        };
+        unsafe { CStr::from_ptr(c_value).to_string_lossy().into_owned() }
+    }
+
+    pub fn set_bool(&self, key: &str, value: bool) {
+        log::info!("Set setting: {} = {}", key, value);
+        let c_key = CString::new(key).unwrap();
+        unsafe { purple_sys::purple_account_set_bool(self.0, c_key.as_ptr(), value as i32) };
+    }
+    pub fn set_int(&self, key: &str, value: i32) {
+        log::info!("Set setting: {} = {}", key, value);
+        let c_key = CString::new(key).unwrap();
+        unsafe { purple_sys::purple_account_set_int(self.0, c_key.as_ptr(), value) };
+    }
+    pub fn set_string(&self, key: &str, value: &str) {
+        log::info!("Set setting: {} = {}", key, value);
+        let c_key = CString::new(key).unwrap();
+        let c_value = CString::new(value).unwrap();
+        unsafe { purple_sys::purple_account_set_string(self.0, c_key.as_ptr(), c_value.as_ptr()) };
+    }
+
+    pub fn remove_setting(&self, key: &str) {
+        log::info!("Delete setting: {}", key);
+        let c_key = CString::new(key).unwrap();
+        unsafe { purple_sys::purple_account_remove_setting(self.0, c_key.as_ptr()) };
+    }
+
+    pub fn set_settings<T: serde::Serialize>(&self, settings: &T) -> settings::Result<()> {
+        settings::to_account(&self, settings)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn request_input<F>(
         &self,
         title: Option<&str>,
@@ -100,6 +151,7 @@ impl Account {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 unsafe fn purple_request_input_with_callback<F>(
     connection: *mut c_void,
     title: *const c_char,

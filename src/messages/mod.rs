@@ -1,8 +1,10 @@
 pub use self::account_handle::AccountHandle;
-use crate::purple::Account;
+pub use self::connection_handle::AsConnection;
+use crate::purple::{Account, Connection};
 use async_std::sync::{Receiver, Sender};
 
 mod account_handle;
+mod connection_handle;
 
 pub struct FdSender<T> {
     os_sender: os_pipe::PipeWriter,
@@ -20,7 +22,7 @@ impl<T> FdSender<T> {
     pub async fn send(&mut self, item: T) {
         self.channel_sender.send(item).await;
         use std::io::Write;
-        self.os_sender.write(&[0]).unwrap();
+        self.os_sender.write_all(&[0]).unwrap();
     }
 }
 
@@ -45,10 +47,14 @@ pub enum PurpleMessage {
 }
 
 pub enum SystemMessage {
-    Ping,
     ExecAccount {
         handle: AccountHandle,
         function: Box<dyn FnOnce(Account) + Send + 'static>,
+    },
+    ExecConnection {
+        handle: Box<dyn AsConnection + Send>,
+        function: Box<dyn FnOnce(Connection) + Send + 'static>,
+        result_sender: Sender<Option<()>>,
     },
 }
 

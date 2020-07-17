@@ -4,10 +4,10 @@ pub use self::handlers::traits::*;
 pub use self::loader::{PrplInfo, PrplPluginLoader, RegisterContext};
 pub use self::plugin::Plugin;
 pub use self::status_type::{PurpleStatusPrimitive, StatusType};
-pub use purple_sys::PurpleInputCondition;
+pub use purple_sys::{PurpleConnectionState, PurpleInputCondition};
 
 use std::os::raw::c_void;
-mod account;
+pub mod account;
 mod connection;
 mod ffi;
 mod handlers;

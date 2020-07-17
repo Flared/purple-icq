@@ -1,5 +1,5 @@
 use super::Plugin;
-use purple_sys;
+use crate::purple;
 use std::ptr::NonNull;
 pub struct Connection(NonNull<purple_sys::PurpleConnection>);
 
@@ -19,5 +19,10 @@ impl Connection {
         } else {
             Some(unsafe { Plugin::from_raw(plugin_ptr) })
         }
+    }
+
+    pub fn set_state(&self, state: purple::PurpleConnectionState) {
+        log::info!("Connection state: {:?}", state);
+        unsafe { purple_sys::purple_connection_set_state(self.0.as_ptr(), state) };
     }
 }

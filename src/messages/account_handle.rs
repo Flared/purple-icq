@@ -1,6 +1,11 @@
-use super::{FdSender, SystemMessage};
-use crate::purple::Account;
+use super::connection_handle::ConnectionProxy;
+use super::{AsConnection, FdSender, SystemMessage};
+use crate::purple::{account, Account, Connection};
 use async_std::sync::channel;
+
+#[derive(Debug, Clone)]
+pub struct AccountConnectionHandle(AccountHandle);
+
 #[derive(Debug, Clone)]
 pub struct AccountHandle(*mut purple_sys::PurpleAccount);
 
@@ -8,14 +13,19 @@ pub struct AccountHandle(*mut purple_sys::PurpleAccount);
 unsafe impl Send for AccountHandle {}
 
 impl AccountHandle {
-    pub fn as_account(&self) -> Account {
-        unsafe { Account::from_raw(self.0) }
+    pub unsafe fn as_account(&self) -> Account {
+        Account::from_raw(self.0)
     }
+
     pub fn proxy<'a>(&self, sender: &'a mut FdSender<SystemMessage>) -> AccountProxy<'a> {
         AccountProxy {
             handle: self.clone(),
             sender,
         }
+    }
+
+    pub fn get_connection(&self) -> AccountConnectionHandle {
+        AccountConnectionHandle(self.clone())
     }
 }
 
@@ -24,7 +34,23 @@ pub struct AccountProxy<'a> {
     sender: &'a mut FdSender<SystemMessage>,
 }
 impl<'a> AccountProxy<'a> {
-    pub async fn exec<F>(&mut self, f: F)
+    pub async fn exec<F, T>(&mut self, f: F) -> T
+    where
+        F: FnOnce(Account) -> T,
+        F: Send + 'static,
+        T: Send + 'static,
+    {
+        let (tx, rx) = channel(1);
+        self.exec_no_return(move |account| {
+            if let Err(error) = tx.try_send(f(account)) {
+                log::error!("Failed to send result: {:?}", error);
+            }
+        })
+        .await;
+        rx.recv().await.expect("Failed to receive result")
+    }
+
+    pub async fn exec_no_return<F>(&mut self, f: F)
     where
         F: FnOnce(Account),
         F: Send + 'static,
@@ -37,6 +63,7 @@ impl<'a> AccountProxy<'a> {
             .await;
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn request_input(
         &mut self,
         title: Option<String>,
@@ -49,9 +76,9 @@ impl<'a> AccountProxy<'a> {
         ok_text: String,
         cancel_text: String,
         who: Option<String>,
-    ) -> Result<Option<String>, async_std::sync::RecvError> {
+    ) -> Option<String> {
         let (tx, rx) = channel(1);
-        self.exec(move |account| {
+        self.exec_no_return(move |account| {
             account.request_input(
                 title.as_deref(),
                 primary.as_deref(),
@@ -72,12 +99,35 @@ impl<'a> AccountProxy<'a> {
         })
         .await;
 
-        rx.recv().await
+        rx.recv().await.expect("Failed to receive result")
+    }
+
+    pub async fn set_settings<T: 'static + serde::Serialize + Send>(
+        &mut self,
+        settings: T,
+    ) -> account::settings::Result<()> {
+        self.exec(move |account| account.set_settings(&settings))
+            .await
     }
 }
 
 impl std::convert::From<&Account> for AccountHandle {
     fn from(account: &Account) -> Self {
-        return Self(account.as_ptr());
+        Self(account.as_ptr())
+    }
+}
+
+impl AccountConnectionHandle {
+    pub fn proxy<'a>(&self, sender: &'a mut FdSender<SystemMessage>) -> ConnectionProxy<'a, Self> {
+        ConnectionProxy {
+            handle: self.clone(),
+            sender,
+        }
+    }
+}
+
+impl AsConnection for AccountConnectionHandle {
+    unsafe fn as_connection(&self) -> Option<Connection> {
+        self.0.as_account().get_connection()
     }
 }

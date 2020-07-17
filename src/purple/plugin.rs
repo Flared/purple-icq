@@ -5,7 +5,7 @@ impl Plugin {
         Plugin(ptr)
     }
 
-    pub unsafe fn extra<T>(&self) -> &mut T {
+    pub unsafe fn extra<'a, T>(&mut self) -> &'a mut T {
         &mut *((*self.0).extra as *mut T)
     }
 }

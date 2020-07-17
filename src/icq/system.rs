@@ -2,8 +2,8 @@ use super::protocol;
 use crate::messages::{
     AccountHandle, AccountInfo, FdSender, ICQSystemHandle, PurpleMessage, SystemMessage,
 };
+use crate::purple;
 use async_std::sync::{channel, Receiver};
-use log;
 
 const CHANNEL_CAPACITY: usize = 1024;
 
@@ -53,26 +53,74 @@ impl ICQSystem {
             match purple_message {
                 PurpleMessage::Login(account_info) => self.login(account_info).await,
             }
-            self.ping().await
         }
-    }
-
-    async fn ping(&mut self) {
-        self.tx.send(SystemMessage::Ping).await;
     }
 
     async fn login(&mut self, account_info: AccountInfo) {
         log::debug!("login");
-        match protocol::register(&account_info.phone_number, || {
-            log::debug!("read_code");
-            self.read_code(&account_info.account)
-        })
-        .await
-        {
-            Ok(_) => (),
-            Err(error) => {
-                log::error!("Failed to register account: {:?}", error);
+        let mut registered_account_info = {
+            account_info
+                .account
+                .proxy(&mut self.tx)
+                .exec(|account| {
+                    let token =
+                        account.get_string(protocol::RegistrationData::TOKEN_SETTING_KEY, "");
+                    if token == "" {
+                        None
+                    } else {
+                        Some(protocol::RegistrationData {
+                            token,
+                            session_id: account
+                                .get_string(protocol::RegistrationData::SESSION_ID_SETTING_KEY, ""),
+                            session_key: account.get_string(
+                                protocol::RegistrationData::SESSION_KEY_SETTING_KEY,
+                                "",
+                            ),
+                            host_time: account
+                                .get_int(protocol::RegistrationData::HOST_TIME_SETTING_KEY, 0)
+                                as u32,
+                        })
+                    }
+                })
+                .await
+        };
+        if registered_account_info.is_none() {
+            match protocol::register(&account_info.phone_number, || {
+                log::debug!("read_code");
+                self.read_code(&account_info.account)
+            })
+            .await
+            {
+                Ok(info) => {
+                    account_info
+                        .account
+                        .proxy(&mut self.tx)
+                        .set_settings(info.clone())
+                        .await
+                        .expect("Failed to write settings");
+                    registered_account_info = Some(info);
+                }
+                Err(error) => {
+                    log::error!("Failed to register account: {:?}", error);
+                }
             }
+        }
+
+        log::debug!("Registered account info: {:?}", registered_account_info);
+        if registered_account_info.is_none() {
+            return;
+        }
+
+        if let Some(registered_account_info) = registered_account_info {
+            account_info
+                .account
+                .get_connection()
+                .proxy(&mut self.tx)
+                .set_state(purple::PurpleConnectionState::PURPLE_CONNECTING)
+                .await;
+
+            let session_info = protocol::start_session(&registered_account_info).await;
+            log::debug!("Session info: {:?}", session_info);
         }
     }
 
@@ -93,6 +141,6 @@ impl ICQSystem {
             )
             .await;
         log::info!("Code: {:?}", code);
-        code.ok().flatten()
+        code
     }
 }

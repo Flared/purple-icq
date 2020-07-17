@@ -1,12 +1,11 @@
+use super::super::{Account, Connection, Plugin};
+use super::traits;
 use crate::glib::GList;
 use lazy_static::lazy_static;
 use log::{debug, error};
-use std::panic::catch_unwind;
-
-use super::super::{Account, Connection, Plugin};
-use super::traits;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
+use std::panic::catch_unwind;
 
 lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
@@ -22,7 +21,7 @@ pub extern "C" fn actions(
 pub extern "C" fn load<P: traits::LoadHandler>(plugin_ptr: *mut purple_sys::PurplePlugin) -> i32 {
     match catch_unwind(|| {
         debug!("load");
-        let plugin = unsafe { Plugin::from_raw(plugin_ptr) };
+        let mut plugin = unsafe { Plugin::from_raw(plugin_ptr) };
         let prpl_plugin = unsafe { plugin.extra::<P>() };
         prpl_plugin.load(&plugin) as i32
     }) {
@@ -35,7 +34,7 @@ pub extern "C" fn login<P: traits::LoginHandler>(account_ptr: *mut purple_sys::P
     if let Err(error) = catch_unwind(|| {
         debug!("login");
         let account = unsafe { Account::from_raw(account_ptr) };
-        let plugin = account
+        let mut plugin = account
             .get_connection()
             .expect("No connection found for account")
             .get_protocol_plugin()
@@ -60,7 +59,7 @@ pub extern "C" fn close<P: traits::CloseHandler>(
     if let Err(error) = catch_unwind(|| {
         debug!("close");
         let connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
-        let plugin = connection
+        let mut plugin = connection
             .get_protocol_plugin()
             .expect("No plugin found for connection");
         let prpl_plugin = unsafe { plugin.extra::<P>() };
