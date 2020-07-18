@@ -58,6 +58,7 @@ impl ICQSystem {
 
     async fn login(&mut self, account_info: AccountInfo) {
         log::debug!("login");
+        let connection = account_info.account.get_connection();
         let mut registered_account_info = {
             account_info
                 .account
@@ -108,19 +109,37 @@ impl ICQSystem {
 
         log::debug!("Registered account info: {:?}", registered_account_info);
         if registered_account_info.is_none() {
+            connection
+                .proxy(&mut self.tx)
+                .error_reason(
+                    purple::PurpleConnectionError::PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
+                    "Failed to register account".into(),
+                )
+                .await;
             return;
         }
 
         if let Some(registered_account_info) = registered_account_info {
-            account_info
-                .account
-                .get_connection()
+            connection
                 .proxy(&mut self.tx)
                 .set_state(purple::PurpleConnectionState::PURPLE_CONNECTING)
                 .await;
 
             let session_info = protocol::start_session(&registered_account_info).await;
             log::debug!("Session info: {:?}", session_info);
+            match session_info {
+                Ok(_info) => {
+                    connection
+                        .proxy(&mut self.tx)
+                        .set_state(purple::PurpleConnectionState::PURPLE_CONNECTED)
+                        .await;
+                }
+                Err(error) => {
+                    connection.proxy(&mut self.tx)
+                        .error_reason(purple::PurpleConnectionError::PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
+                                      format!("Failed to start session: {:?}", error)).await;
+                }
+            }
         }
     }
 
