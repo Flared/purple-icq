@@ -6,10 +6,7 @@ use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 use std::panic::catch_unwind;
 
-pub mod protocol;
 pub mod settings;
-
-pub use self::protocol::{Handle, ProtocolDatas};
 
 impl AsMutPtr<purple_sys::PurpleAccount> for Account {
     fn as_mut_ptr(&mut self) -> *mut purple_sys::PurpleAccount {

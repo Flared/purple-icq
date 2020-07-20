@@ -4,6 +4,12 @@ use std::ffi::CString;
 use std::os::raw::c_void;
 use std::ptr::NonNull;
 
+pub mod connections;
+pub mod protocol_data;
+
+pub use self::connections::Connections;
+pub use self::protocol_data::Handle;
+
 #[derive(Clone)]
 pub struct Connection(NonNull<purple_sys::PurpleConnection>);
 

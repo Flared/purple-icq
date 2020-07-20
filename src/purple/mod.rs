@@ -1,5 +1,5 @@
-pub use self::account::{Account, Handle};
-pub use self::connection::Connection;
+pub use self::account::Account;
+pub use self::connection::{Connection, Connections, Handle};
 pub use self::handlers::traits::*;
 pub use self::loader::{PrplInfo, PrplPluginLoader, RegisterContext};
 pub use self::plugin::Plugin;

@@ -20,7 +20,7 @@ pub type Handle = purple::Handle<AccountData>;
 
 struct PurpleICQ {
     system: ICQSystemHandle,
-    connection_datas: purple::account::ProtocolDatas<AccountData>,
+    connections: purple::Connections<AccountData>,
     input_handle: Option<u32>,
 }
 
@@ -33,7 +33,7 @@ impl purple::PrplPlugin for PurpleICQ {
         Self {
             system,
             input_handle: None,
-            connection_datas: purple::account::ProtocolDatas::new(),
+            connections: purple::Connections::new(),
         }
     }
     fn register(&self, context: RegisterContext<Self>) -> RegisterContext<Self> {
@@ -61,7 +61,7 @@ impl purple::LoginHandler for PurpleICQ {
     fn login(&mut self, account: &mut Account) {
         // Safe as long as we remove the account in "close".
         unsafe {
-            self.connection_datas
+            self.connections
                 .add(&mut account.get_connection().unwrap(), AccountData {})
         };
         let phone_number = account.get_username().unwrap().into();
@@ -77,7 +77,7 @@ impl purple::LoginHandler for PurpleICQ {
 impl purple::CloseHandler for PurpleICQ {
     fn close(&mut self, connection: &mut Connection) {
         // Safe as long as we remove the account in "close".
-        self.connection_datas.remove(connection);
+        self.connections.remove(connection);
 
         println!("Close");
     }
@@ -147,7 +147,7 @@ impl PurpleICQ {
     fn process_message(&mut self, message: SystemMessage) {
         match message {
             SystemMessage::ExecAccount { handle, function } => {
-                self.connection_datas
+                self.connections
                     .get(handle)
                     .map(|protocol_data| function(&mut protocol_data.account))
                     .or_else(|| {
@@ -156,7 +156,7 @@ impl PurpleICQ {
                     });
             }
             SystemMessage::ExecConnection { handle, function } => {
-                self.connection_datas
+                self.connections
                     .get(handle)
                     .map(|protocol_data| function(&mut protocol_data.connection))
                     .or_else(|| {
