@@ -8,15 +8,17 @@ use std::panic::catch_unwind;
 
 pub mod settings;
 
+impl AsMutPtr<purple_sys::PurpleAccount> for Account {
+    fn as_mut_ptr(&mut self) -> *mut purple_sys::PurpleAccount {
+        self.0
+    }
+}
+
 pub struct Account(*mut purple_sys::PurpleAccount);
 
 impl Account {
     pub unsafe fn from_raw(ptr: *mut purple_sys::PurpleAccount) -> Self {
         Account(ptr)
-    }
-
-    pub fn as_ptr(&self) -> *mut purple_sys::PurpleAccount {
-        self.0
     }
 
     pub fn get_connection(&self) -> Option<Connection> {

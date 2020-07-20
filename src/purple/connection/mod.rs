@@ -1,7 +1,16 @@
 use super::Plugin;
 use crate::purple;
 use std::ffi::CString;
+use std::os::raw::c_void;
 use std::ptr::NonNull;
+
+pub mod connections;
+pub mod protocol_data;
+
+pub use self::connections::Connections;
+pub use self::protocol_data::Handle;
+
+#[derive(Clone)]
 pub struct Connection(NonNull<purple_sys::PurpleConnection>);
 
 impl Connection {
@@ -19,6 +28,20 @@ impl Connection {
             None
         } else {
             Some(unsafe { Plugin::from_raw(plugin_ptr) })
+        }
+    }
+
+    pub fn set_protocol_data(&mut self, data: *mut c_void) {
+        unsafe { purple_sys::purple_connection_set_protocol_data(self.0.as_ptr(), data) };
+    }
+
+    pub fn get_protocol_data(&mut self) -> *mut c_void {
+        unsafe { purple_sys::purple_connection_get_protocol_data(self.0.as_ptr()) }
+    }
+
+    pub fn get_account(&mut self) -> purple::Account {
+        unsafe {
+            purple::Account::from_raw(purple_sys::purple_connection_get_account(self.0.as_ptr()))
         }
     }
 

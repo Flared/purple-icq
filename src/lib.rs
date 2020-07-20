@@ -1,32 +1,39 @@
+use lazy_static::lazy_static;
+use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
+use purple::*;
+use std::ffi::{CStr, CString};
+use std::io::Read;
+
 mod glib;
 mod icq;
 #[macro_use]
 mod purple;
 mod messages;
 
-use lazy_static::lazy_static;
-use messages::{AccountHandle, AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
-use purple::*;
-use std::ffi::{CStr, CString};
-use std::io::Read;
-
 lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
 }
 
+pub struct AccountData {}
+
+pub type Handle = purple::Handle<AccountData>;
+
 struct PurpleICQ {
     system: ICQSystemHandle,
+    connections: purple::Connections<AccountData>,
     input_handle: Option<u32>,
 }
 
 impl purple::PrplPlugin for PurpleICQ {
     type Plugin = Self;
+
     fn new() -> Self {
         env_logger::init();
         let system = icq::system::spawn();
         Self {
             system,
             input_handle: None,
+            connections: purple::Connections::new(),
         }
     }
     fn register(&self, context: RegisterContext<Self>) -> RegisterContext<Self> {
@@ -51,24 +58,29 @@ impl purple::PrplPlugin for PurpleICQ {
 }
 
 impl purple::LoginHandler for PurpleICQ {
-    fn login(&self, account: &Account) {
+    fn login(&mut self, account: &mut Account) {
+        // Safe as long as we remove the account in "close".
+        unsafe {
+            self.connections
+                .add(&mut account.get_connection().unwrap(), AccountData {})
+        };
         let phone_number = account.get_username().unwrap().into();
         self.system
             .tx
             .try_send(PurpleMessage::Login(AccountInfo::new(
-                AccountHandle::from(account),
+                Handle::from(account),
                 phone_number,
             )))
             .unwrap();
     }
 }
 impl purple::CloseHandler for PurpleICQ {
-    fn close(&self, _connection: &Connection) {
-        println!("Close");
+    fn close(&mut self, connection: &mut Connection) {
+        self.connections.remove(connection);
     }
 }
 impl purple::StatusTypeHandler for PurpleICQ {
-    fn status_types(_account: &Account) -> Vec<StatusType> {
+    fn status_types(_account: &mut Account) -> Vec<StatusType> {
         vec![
             StatusType::new(
                 PurpleStatusPrimitive::PURPLE_STATUS_AVAILABLE,
@@ -97,7 +109,7 @@ impl purple::LoadHandler for PurpleICQ {
 }
 
 impl purple::ListIconHandler for PurpleICQ {
-    fn list_icon(_account: &Account) -> &'static CStr {
+    fn list_icon(_account: &mut Account) -> &'static CStr {
         &ICON_FILE
     }
 }
@@ -129,22 +141,26 @@ impl purple::InputHandler for PurpleICQ {
 }
 
 impl PurpleICQ {
-    fn process_message(&self, message: SystemMessage) {
+    fn process_message(&mut self, message: SystemMessage) {
         match message {
             SystemMessage::ExecAccount { handle, function } => {
-                function(unsafe { handle.as_account() });
+                self.connections
+                    .get(handle)
+                    .map(|protocol_data| function(&mut protocol_data.account))
+                    .or_else(|| {
+                        log::warn!("The account connection has been closed");
+                        None
+                    });
             }
-            SystemMessage::ExecConnection {
-                handle,
-                function,
-                result_sender,
-            } => unsafe {
-                result_sender
-                    .try_send(handle.as_connection().map(|c| {
-                        function(c);
-                    }))
-                    .expect("Failed to send result");
-            },
+            SystemMessage::ExecConnection { handle, function } => {
+                self.connections
+                    .get(handle)
+                    .map(|protocol_data| function(&mut protocol_data.connection))
+                    .or_else(|| {
+                        log::warn!("The account connection has been closed");
+                        None
+                    });
+            }
         }
     }
 }

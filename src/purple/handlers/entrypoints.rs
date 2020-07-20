@@ -33,14 +33,14 @@ pub extern "C" fn load<P: traits::LoadHandler>(plugin_ptr: *mut purple_sys::Purp
 pub extern "C" fn login<P: traits::LoginHandler>(account_ptr: *mut purple_sys::PurpleAccount) {
     if let Err(error) = catch_unwind(|| {
         debug!("login");
-        let account = unsafe { Account::from_raw(account_ptr) };
+        let mut account = unsafe { Account::from_raw(account_ptr) };
         let mut plugin = account
             .get_connection()
             .expect("No connection found for account")
             .get_protocol_plugin()
             .expect("No plugin found for connection");
         let prpl_plugin = unsafe { plugin.extra::<P>() };
-        prpl_plugin.login(&account);
+        prpl_plugin.login(&mut account);
     }) {
         error!("Failure in login: {:?}", error)
     };
@@ -58,12 +58,12 @@ pub extern "C" fn close<P: traits::CloseHandler>(
 ) {
     if let Err(error) = catch_unwind(|| {
         debug!("close");
-        let connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
+        let mut connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
         let mut plugin = connection
             .get_protocol_plugin()
             .expect("No plugin found for connection");
         let prpl_plugin = unsafe { plugin.extra::<P>() };
-        prpl_plugin.close(&connection)
+        prpl_plugin.close(&mut connection)
     }) {
         error!("Failure in close: {:?}", error)
     }
@@ -75,8 +75,8 @@ pub extern "C" fn list_icon<P: traits::ListIconHandler>(
 ) -> *const c_char {
     match catch_unwind(|| {
         debug!("list_icon");
-        let account = unsafe { Account::from_raw(account_ptr) };
-        P::list_icon(&account).as_ptr()
+        let mut account = unsafe { Account::from_raw(account_ptr) };
+        P::list_icon(&mut account).as_ptr()
     }) {
         Ok(r) => r,
         Err(error) => {
@@ -91,9 +91,9 @@ pub extern "C" fn status_types<P: traits::StatusTypeHandler>(
 ) -> *mut glib_sys::GList {
     match catch_unwind(|| {
         debug!("status_types");
-        let account = unsafe { Account::from_raw(account_ptr) };
+        let mut account = unsafe { Account::from_raw(account_ptr) };
         GList::from(
-            P::status_types(&account)
+            P::status_types(&mut account)
                 .into_iter()
                 .map(|s| s.into_raw() as *mut c_void)
                 .collect::<Vec<*mut c_void>>(),

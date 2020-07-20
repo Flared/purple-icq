@@ -5,19 +5,19 @@ pub trait LoadHandler {
 }
 
 pub trait LoginHandler {
-    fn login(&self, account: &Account);
+    fn login(&mut self, account: &mut Account);
 }
 
 pub trait CloseHandler {
-    fn close(&self, connection: &Connection);
+    fn close(&mut self, connection: &mut Connection);
 }
 
 pub trait StatusTypeHandler {
-    fn status_types(account: &Account) -> Vec<StatusType>;
+    fn status_types(account: &mut Account) -> Vec<StatusType>;
 }
 
 pub trait ListIconHandler {
-    fn list_icon(account: &Account) -> &'static CStr;
+    fn list_icon(account: &mut Account) -> &'static CStr;
 }
 pub trait ChatInfoHandler {}
 

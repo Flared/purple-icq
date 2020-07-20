@@ -1,15 +1,15 @@
 pub use self::account::Account;
-pub use self::connection::Connection;
+pub use self::connection::{Connection, Connections, Handle};
 pub use self::handlers::traits::*;
 pub use self::loader::{PrplInfo, PrplPluginLoader, RegisterContext};
 pub use self::plugin::Plugin;
 pub use self::status_type::{PurpleStatusPrimitive, StatusType};
 pub use purple_sys::{PurpleConnectionError, PurpleConnectionState, PurpleInputCondition};
-
 use std::os::raw::c_void;
+
 pub mod account;
 mod connection;
-mod ffi;
+pub mod ffi;
 mod handlers;
 mod loader;
 mod plugin;
