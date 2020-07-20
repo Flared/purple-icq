@@ -1,10 +1,13 @@
 use serde::{Deserialize, Serialize};
 use surf::middleware::HttpClient;
 
+pub mod events;
+
 const SEND_CODE_URL: &str = "https://u.icq.net/api/v14/rapi/auth/sendCode";
 const LOGIN_WITH_PHONE_NUMBER_URL: &str =
     "https://u.icq.net/api/v14/smsreg/loginWithPhoneNumber.php";
 const START_SESSION_URL: &str = "https://u.icq.net/api/v14/wim/aim/startSession?";
+const FETCH_EVENTS_URL: &str = "https://u.icq.net/api/v14/bos/bos-m001f/aim/fetchEvents?";
 
 #[derive(Debug)]
 pub enum Error {
@@ -97,6 +100,32 @@ pub struct LoginWithPhoneNumberResponseToken {
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct FetchEventsBody<'a> {
+    pub aimsid: &'a str,
+    pub rnd: &'a str,
+    pub seq_num: u32,
+    pub timeout: u32,
+    pub supported_suggest_types: &'a str,
+    pub bg: u32,
+    pub hidden: u32,
+}
+
+type FetchEventsResponse = WebIcqResponse<FetchEventsResponseData>;
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchEventsResponseData {
+    pub poll_time: String,
+    pub ts: String,
+    #[serde(rename = "fetchBaseURL")]
+    pub fetch_base_url: String,
+    pub fetch_timeout: u32,
+    pub time_to_next_fetch: u32,
+    pub events: Vec<events::Event>,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct StartSessionBody<'a> {
     pub a: &'a str,
     pub ts: u32,
@@ -144,6 +173,27 @@ pub async fn start_session(body: &StartSessionBody<'_>) -> Result<StartSessionRe
     let params = serde_urlencoded::to_string(body).map_err(Error::UrlEncodedSerializationError)?;
     let url = START_SESSION_URL.to_string() + &params;
     post_form(&url, &StartSessionFormBody {}).await
+}
+
+pub async fn fetch_events(body: &FetchEventsBody<'_>) -> Result<FetchEventsResponse> {
+    let params = serde_urlencoded::to_string(body).map_err(Error::UrlEncodedSerializationError)?;
+    let url = FETCH_EVENTS_URL.to_string() + &params;
+    get_json(&url).await
+}
+
+async fn get_json<T: serde::de::DeserializeOwned>(url: &str) -> Result<T> {
+    log::debug!("GET {}", url);
+
+    let mut res = surf::get(url)
+        .with_default_headers()
+        .await
+        .map_err(Error::RequestError)?;
+
+    let body = res.body_string().await;
+    log::debug!("GET {} -> {} - {:?}", url, res.status(), body);
+    let body = body.map_err(Error::RequestError)?;
+
+    serde_json::from_str(&body).map_err(Error::DeserializationError)
 }
 
 async fn post_form<T: serde::Serialize, U: serde::de::DeserializeOwned>(

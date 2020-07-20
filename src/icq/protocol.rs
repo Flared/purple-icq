@@ -1,4 +1,5 @@
 use super::client;
+use super::client::events::Event;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -20,7 +21,7 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SessionInfo {
     pub registration_data: RegistrationData,
     pub aim_id: String,
@@ -110,6 +111,24 @@ pub async fn start_session(registration_data: &RegistrationData) -> Result<Sessi
         aim_id: start_session_response.response.data.my_info.aim_id,
         aim_sid: start_session_response.response.data.aimsid,
     })
+}
+
+pub async fn fetch_events(session_info: &SessionInfo, seq_num: u32) -> Result<Vec<Event>> {
+    let fetch_events_body = client::FetchEventsBody {
+        aimsid: &session_info.aim_sid,
+        bg: 1,
+        hidden: 1,
+        rnd: "1.1",
+        timeout: 30000,
+        seq_num,
+        supported_suggest_types: "sticker-smartreply,text-smartreply",
+    };
+
+    let fetch_events_response = client::fetch_events(&fetch_events_body)
+        .await
+        .map_err(Error::ApiError)?;
+
+    Ok(fetch_events_response.response.data.events)
 }
 
 fn request_id() -> String {

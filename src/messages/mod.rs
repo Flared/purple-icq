@@ -43,6 +43,15 @@ impl FdSender<SystemMessage> {
     }
 }
 
+impl<T> Clone for FdSender<T> {
+    fn clone(&self) -> Self {
+        Self {
+            os_sender: self.os_sender.try_clone().unwrap(),
+            channel_sender: self.channel_sender.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AccountInfo {
     pub handle: Handle,

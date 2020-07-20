@@ -40,6 +40,11 @@ impl Account {
         }
     }
 
+    pub fn is_disconnected(&self) -> bool {
+        let is_disconnected = unsafe { purple_sys::purple_account_is_disconnected(self.0) };
+        is_disconnected != 0
+    }
+
     #[allow(dead_code)]
     pub fn get_bool(&self, key: &str, default_value: bool) -> bool {
         let c_key = CString::new(key).unwrap();
