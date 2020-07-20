@@ -17,24 +17,6 @@ impl AsMutPtr<purple_sys::PurpleAccount> for Account {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct AccountHandle(*mut purple_sys::PurpleAccount);
-
-// AccountHandle are safe to clone and send to other thread.
-unsafe impl Send for AccountHandle {}
-
-impl AsMutPtr<purple_sys::PurpleAccount> for AccountHandle {
-    fn as_mut_ptr(&mut self) -> *mut purple_sys::PurpleAccount {
-        self.0
-    }
-}
-
-impl From<&Account> for AccountHandle {
-    fn from(account: &Account) -> Self {
-        Self(account.0)
-    }
-}
-
 pub struct Account(*mut purple_sys::PurpleAccount);
 
 impl Account {

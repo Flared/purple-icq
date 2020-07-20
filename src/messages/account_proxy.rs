@@ -1,16 +1,16 @@
-use crate::Handle;
 use super::{FdSender, SystemMessage};
 use crate::purple::{account, Account};
+use crate::Handle;
 use async_std::sync::channel;
 
 pub struct AccountProxy<'a> {
-    handle: Handle,
-    sender: &'a mut FdSender<SystemMessage>,
+    pub handle: Handle,
+    pub sender: &'a mut FdSender<SystemMessage>,
 }
 impl<'a> AccountProxy<'a> {
-    pub async fn exec<F, T>(&mut self, f: F) -> T
+    pub async fn exec<F, T>(&mut self, f: F) -> Option<T>
     where
-        F: FnOnce(Account) -> T,
+        F: FnOnce(&mut Account) -> T,
         F: Send + 'static,
         T: Send + 'static,
     {
@@ -21,12 +21,15 @@ impl<'a> AccountProxy<'a> {
             }
         })
         .await;
-        rx.recv().await.expect("Failed to receive result")
+        rx.recv().await.ok().or_else(|| {
+            log::error!("Failed to receive result");
+            None
+        })
     }
 
     pub async fn exec_no_return<F>(&mut self, f: F)
     where
-        F: FnOnce(Account),
+        F: FnOnce(&mut Account),
         F: Send + 'static,
     {
         self.sender
@@ -73,7 +76,7 @@ impl<'a> AccountProxy<'a> {
         })
         .await;
 
-        rx.recv().await.expect("Failed to receive result")
+        rx.recv().await.ok().flatten()
     }
 
     pub async fn set_settings<T: 'static + serde::Serialize + Send>(
@@ -82,7 +85,11 @@ impl<'a> AccountProxy<'a> {
     ) -> account::settings::Result<()> {
         self.exec(move |account| account.set_settings(&settings))
             .await
+            .transpose()
+            .and_then(|option| {
+                option.ok_or_else(|| {
+                    account::settings::Error::Message("Failed to receive result".into())
+                })
+            })
     }
 }
-
-

@@ -52,6 +52,7 @@ impl<P: PrplPlugin> PrplPluginLoader<P> {
 
     pub fn init(&self) -> i32 {
         let prpl_plugin = Box::new(P::new());
+        log::info!("registering");
         let register_context: RegisterContext<P::Plugin> = RegisterContext::new();
         let register_context = prpl_plugin.register(register_context);
 
@@ -62,6 +63,7 @@ impl<P: PrplPlugin> PrplPluginLoader<P> {
             (*self.0).extra = Box::into_raw(prpl_plugin) as *mut c_void;
 
             info!("Registering");
+
             purple_sys::purple_plugin_register(self.0)
         }
     }

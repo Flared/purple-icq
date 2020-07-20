@@ -4,14 +4,7 @@ use std::ffi::CString;
 use std::os::raw::c_void;
 use std::ptr::NonNull;
 
-pub struct ConnectionHandle(*mut purple_sys::PurpleConnection);
-
-impl From<&Connection> for ConnectionHandle {
-    fn from(connection: &Connection) -> Self {
-        Self(connection.0)
-    }
-}
-
+#[derive(Clone)]
 pub struct Connection(NonNull<purple_sys::PurpleConnection>);
 
 impl Connection {

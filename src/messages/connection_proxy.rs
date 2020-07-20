@@ -1,6 +1,6 @@
+use super::{FdSender, SystemMessage};
 use crate::purple::{Connection, PurpleConnectionError, PurpleConnectionState};
 use crate::Handle;
-use super::{FdSender, SystemMessage};
 use async_std::sync::channel;
 
 pub struct ConnectionProxy<'a> {
@@ -10,9 +10,9 @@ pub struct ConnectionProxy<'a> {
 
 impl<'a> ConnectionProxy<'a> {
     #[allow(dead_code)]
-    pub async fn exec<F, T>(&mut self, f: F) -> T
+    pub async fn exec<F, T>(&mut self, f: F) -> Option<T>
     where
-        F: FnOnce(Connection) -> T,
+        F: FnOnce(&mut Connection) -> T,
         F: Send + 'static,
         T: Send + 'static,
     {
@@ -23,12 +23,15 @@ impl<'a> ConnectionProxy<'a> {
             }
         })
         .await;
-        rx.recv().await.expect("Failed to receive result")
+        rx.recv().await.ok().or_else(|| {
+            log::error!("Failed to receive result");
+            None
+        })
     }
 
     pub async fn exec_no_return<F>(&mut self, f: F)
     where
-        F: FnOnce(Connection),
+        F: FnOnce(&mut Connection),
         F: Send + 'static,
     {
         self.sender
@@ -44,11 +47,7 @@ impl<'a> ConnectionProxy<'a> {
             .await
     }
 
-    pub async fn error_reason(
-        &mut self,
-        reason: PurpleConnectionError,
-        description: String,
-    ) {
+    pub async fn error_reason(&mut self, reason: PurpleConnectionError, description: String) {
         self.exec_no_return(move |connection| connection.error_reason(reason, &description))
             .await
     }

@@ -1,7 +1,7 @@
 use self::account_proxy::AccountProxy;
 use self::connection_proxy::ConnectionProxy;
-use crate::Handle;
 use crate::purple::{Account, Connection};
+use crate::Handle;
 use async_std::sync::{Receiver, Sender};
 
 mod account_proxy;
@@ -28,17 +28,17 @@ impl<T> FdSender<T> {
 }
 
 impl FdSender<SystemMessage> {
-    pub fn connection_proxy<'a>(&'a self, handle: &Handle) -> ConnectionProxy<'a> {
+    pub fn connection_proxy<'a>(&'a mut self, handle: &Handle) -> ConnectionProxy<'a> {
         ConnectionProxy {
             handle: handle.clone(),
-            sender: &self,
+            sender: self,
         }
     }
 
-    pub fn account_proxy<'a>(&'a self, handle: &Handle) -> AccountProxy<'a> {
+    pub fn account_proxy<'a>(&'a mut self, handle: &Handle) -> AccountProxy<'a> {
         AccountProxy {
             handle: handle.clone(),
-            sender: &self,
+            sender: self,
         }
     }
 }
@@ -66,11 +66,11 @@ pub enum PurpleMessage {
 pub enum SystemMessage {
     ExecAccount {
         handle: Handle,
-        function: Box<dyn FnOnce(Account) + Send + 'static>,
+        function: Box<dyn FnOnce(&mut Account) + Send + 'static>,
     },
     ExecConnection {
         handle: Handle,
-        function: Box<dyn FnOnce(Connection) + Send + 'static>,
+        function: Box<dyn FnOnce(&mut Connection) + Send + 'static>,
     },
 }
 

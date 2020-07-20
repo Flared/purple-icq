@@ -1,7 +1,6 @@
 use lazy_static::lazy_static;
 use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
-use std::default::Default;
 use std::ffi::{CStr, CString};
 use std::io::Read;
 
@@ -15,9 +14,9 @@ lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
 }
 
-struct AccountData {}
+pub struct AccountData {}
 
-type Handle = purple::Handle<AccountData>;
+pub type Handle = purple::Handle<AccountData>;
 
 struct PurpleICQ {
     system: ICQSystemHandle,
@@ -34,7 +33,7 @@ impl purple::PrplPlugin for PurpleICQ {
         Self {
             system,
             input_handle: None,
-            connection_datas: Default::default(),
+            connection_datas: purple::account::ProtocolDatas::new(),
         }
     }
     fn register(&self, context: RegisterContext<Self>) -> RegisterContext<Self> {
@@ -63,7 +62,7 @@ impl purple::LoginHandler for PurpleICQ {
         // Safe as long as we remove the account in "close".
         unsafe {
             self.connection_datas
-                .add(&account.get_connection().unwrap(), AccountData {})
+                .add(&mut account.get_connection().unwrap(), AccountData {})
         };
         let phone_number = account.get_username().unwrap().into();
         self.system
@@ -147,28 +146,24 @@ impl purple::InputHandler for PurpleICQ {
 impl PurpleICQ {
     fn process_message(&mut self, message: SystemMessage) {
         match message {
-            SystemMessage::ExecAccount {
-                mut handle,
-                function,
-            } => {
-                function(
-                    self.connection_datas
-                        .get(&mut handle)
-                        .expect("Account has been deleted")
-                        .account,
-                );
+            SystemMessage::ExecAccount { handle, function } => {
+                self.connection_datas
+                    .get(handle)
+                    .map(|protocol_data| function(&mut protocol_data.account))
+                    .or_else(|| {
+                        log::warn!("The account connection has been closed");
+                        None
+                    });
             }
-            SystemMessage::ExecConnection {
-                mut handle,
-                function,
-            } => unsafe {
-                function(
-                    self.connection_datas
-                        .get(&mut handle)
-                        .expect("Connection has been closed")
-                        .connection,
-                );
-            },
+            SystemMessage::ExecConnection { handle, function } => {
+                self.connection_datas
+                    .get(handle)
+                    .map(|protocol_data| function(&mut protocol_data.connection))
+                    .or_else(|| {
+                        log::warn!("The account connection has been closed");
+                        None
+                    });
+            }
         }
     }
 }
