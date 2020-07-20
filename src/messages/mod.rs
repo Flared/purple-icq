@@ -1,10 +1,11 @@
-pub use self::account_handle::AccountHandle;
-pub use self::connection_handle::AsConnection;
+use self::account_proxy::AccountProxy;
+use self::connection_proxy::ConnectionProxy;
+use crate::Handle;
 use crate::purple::{Account, Connection};
 use async_std::sync::{Receiver, Sender};
 
-mod account_handle;
-mod connection_handle;
+mod account_proxy;
+mod connection_proxy;
 
 pub struct FdSender<T> {
     os_sender: os_pipe::PipeWriter,
@@ -26,16 +27,32 @@ impl<T> FdSender<T> {
     }
 }
 
+impl FdSender<SystemMessage> {
+    pub fn connection_proxy<'a>(&'a self, handle: &Handle) -> ConnectionProxy<'a> {
+        ConnectionProxy {
+            handle: handle.clone(),
+            sender: &self,
+        }
+    }
+
+    pub fn account_proxy<'a>(&'a self, handle: &Handle) -> AccountProxy<'a> {
+        AccountProxy {
+            handle: handle.clone(),
+            sender: &self,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct AccountInfo {
-    pub account: AccountHandle,
+    pub handle: Handle,
     pub phone_number: String,
 }
 
 impl AccountInfo {
-    pub fn new(account: AccountHandle, phone_number: String) -> Self {
+    pub fn new(handle: Handle, phone_number: String) -> Self {
         Self {
-            account,
+            handle,
             phone_number,
         }
     }
@@ -48,13 +65,12 @@ pub enum PurpleMessage {
 
 pub enum SystemMessage {
     ExecAccount {
-        handle: AccountHandle,
+        handle: Handle,
         function: Box<dyn FnOnce(Account) + Send + 'static>,
     },
     ExecConnection {
-        handle: Box<dyn AsConnection + Send>,
+        handle: Handle,
         function: Box<dyn FnOnce(Connection) + Send + 'static>,
-        result_sender: Sender<Option<()>>,
     },
 }
 

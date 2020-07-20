@@ -1,6 +1,7 @@
+use crate::Handle;
 use super::protocol;
 use crate::messages::{
-    AccountHandle, AccountInfo, FdSender, ICQSystemHandle, PurpleMessage, SystemMessage,
+    AccountInfo, FdSender, ICQSystemHandle, PurpleMessage, SystemMessage,
 };
 use crate::purple;
 use async_std::sync::{channel, Receiver};
@@ -58,11 +59,10 @@ impl ICQSystem {
 
     async fn login(&mut self, account_info: AccountInfo) {
         log::debug!("login");
-        let connection = account_info.account.get_connection();
+        let handle = &account_info.handle;
         let mut registered_account_info = {
-            account_info
-                .account
-                .proxy(&mut self.tx)
+            self.tx
+                .account_proxy(&handle)
                 .exec(|account| {
                     let token =
                         account.get_string(protocol::RegistrationData::TOKEN_SETTING_KEY, "");
@@ -88,14 +88,13 @@ impl ICQSystem {
         if registered_account_info.is_none() {
             match protocol::register(&account_info.phone_number, || {
                 log::debug!("read_code");
-                self.read_code(&account_info.account)
+                self.read_code(&account_info.handle)
             })
             .await
             {
                 Ok(info) => {
-                    account_info
-                        .account
-                        .proxy(&mut self.tx)
+                    self.tx
+                        .account_proxy(&handle)
                         .set_settings(info.clone())
                         .await
                         .expect("Failed to write settings");
@@ -109,8 +108,8 @@ impl ICQSystem {
 
         log::debug!("Registered account info: {:?}", registered_account_info);
         if registered_account_info.is_none() {
-            connection
-                .proxy(&mut self.tx)
+            self.tx
+                .connection_proxy(&handle)
                 .error_reason(
                     purple::PurpleConnectionError::PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
                     "Failed to register account".into(),
@@ -120,8 +119,8 @@ impl ICQSystem {
         }
 
         if let Some(registered_account_info) = registered_account_info {
-            connection
-                .proxy(&mut self.tx)
+            self.tx
+                .connection_proxy(&handle)
                 .set_state(purple::PurpleConnectionState::PURPLE_CONNECTING)
                 .await;
 
@@ -129,13 +128,14 @@ impl ICQSystem {
             log::debug!("Session info: {:?}", session_info);
             match session_info {
                 Ok(_info) => {
-                    connection
-                        .proxy(&mut self.tx)
+                    self.tx
+                        .connection_proxy(&handle)
                         .set_state(purple::PurpleConnectionState::PURPLE_CONNECTED)
                         .await;
                 }
                 Err(error) => {
-                    connection.proxy(&mut self.tx)
+                    self.tx
+                        .connection_proxy(&handle)
                         .error_reason(purple::PurpleConnectionError::PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
                                       format!("Failed to start session: {:?}", error)).await;
                 }
@@ -143,9 +143,9 @@ impl ICQSystem {
         }
     }
 
-    async fn read_code(&mut self, account: &AccountHandle) -> Option<String> {
-        let code = account
-            .proxy(&mut self.tx)
+    async fn read_code(&mut self, handle: &Handle) -> Option<String> {
+        let code = self.tx
+            .account_proxy(&handle)
             .request_input(
                 Some("SMS Code".into()),
                 Some("Enter SMS code".into()),
