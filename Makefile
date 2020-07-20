@@ -23,6 +23,10 @@ uninstall-user:
 	rm -f ~/.purple/plugins/libpurple_icq.so
 
 .PHONY:
+uninstall:
+	rm -f /usr/lib/purple-2/libpurple_icq.so
+
+.PHONY:
 install: build
 	mkdir -p /usr/lib/purple-2/
 	cp target/debug/libpurple_icq.so /usr/lib/purple-2/libpurple_icq.so
