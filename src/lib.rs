@@ -76,10 +76,7 @@ impl purple::LoginHandler for PurpleICQ {
 }
 impl purple::CloseHandler for PurpleICQ {
     fn close(&mut self, connection: &mut Connection) {
-        // Safe as long as we remove the account in "close".
         self.connections.remove(connection);
-
-        println!("Close");
     }
 }
 impl purple::StatusTypeHandler for PurpleICQ {
