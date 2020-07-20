@@ -96,7 +96,7 @@ pub async fn start_session(registration_data: &RegistrationData) -> Result<Sessi
         client_name: "webicq",
         language: LANGUAGE,
         device_id: &device_id(),
-        session_timeout: 2592000,
+        session_timeout: 2_592_000,
         assert_caps: CAPS,
         interest_caps: "",
         events: EVENTS,

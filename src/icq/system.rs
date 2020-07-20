@@ -1,7 +1,7 @@
 use super::protocol;
 use crate::messages::{AccountInfo, FdSender, ICQSystemHandle, PurpleMessage, SystemMessage};
-use crate::purple;
 use crate::Handle;
+use crate::{purple, AccountData};
 use async_std::sync::{channel, Receiver};
 
 const CHANNEL_CAPACITY: usize = 1024;
@@ -125,11 +125,12 @@ impl ICQSystem {
             let session_info = protocol::start_session(&registered_account_info).await;
             log::debug!("Session info: {:?}", session_info);
             match session_info {
-                Ok(_info) => {
+                Ok(session) => {
                     self.tx
                         .connection_proxy(&handle)
                         .set_state(purple::PurpleConnectionState::PURPLE_CONNECTED)
                         .await;
+                    *account_info.protocol_data.lock().await = Some(AccountData { session });
                 }
                 Err(error) => {
                     let error_message = format!("Failed to start session: {:?}", error);

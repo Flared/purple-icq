@@ -17,7 +17,7 @@ impl<T> Connections<T> {
     pub unsafe fn add(&mut self, connection: &mut Connection, data: T) {
         let account = connection.get_account();
         let data_ptr = Box::new(ProtocolData::<T> {
-            account: account,
+            account,
             connection: connection.clone(),
             data,
         });
@@ -40,6 +40,6 @@ impl<T> Connections<T> {
         self.protocol_datas
             .get(&ptr.as_mut_ptr())
             .cloned()
-            .map(|p| unsafe { &mut *p.clone() })
+            .map(|p| unsafe { &mut *p })
     }
 }

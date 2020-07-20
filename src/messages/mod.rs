@@ -1,7 +1,7 @@
 use self::account_proxy::AccountProxy;
 use self::connection_proxy::ConnectionProxy;
 use crate::purple::{Account, Connection};
-use crate::Handle;
+use crate::{AccountDataBox, Handle};
 use async_std::sync::{Receiver, Sender};
 
 mod account_proxy;
@@ -46,16 +46,8 @@ impl FdSender<SystemMessage> {
 #[derive(Debug)]
 pub struct AccountInfo {
     pub handle: Handle,
+    pub protocol_data: AccountDataBox,
     pub phone_number: String,
-}
-
-impl AccountInfo {
-    pub fn new(handle: Handle, phone_number: String) -> Self {
-        Self {
-            handle,
-            phone_number,
-        }
-    }
 }
 
 #[derive(Debug)]

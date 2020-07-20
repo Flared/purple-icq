@@ -1,3 +1,4 @@
+use async_std::sync::{Arc, Mutex};
 use lazy_static::lazy_static;
 use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
@@ -14,13 +15,18 @@ lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
 }
 
-pub struct AccountData {}
+#[derive(Debug)]
+pub struct AccountData {
+    session: icq::protocol::SessionInfo,
+}
 
-pub type Handle = purple::Handle<AccountData>;
+pub type AccountDataBox = Arc<Mutex<Option<AccountData>>>;
+
+pub type Handle = purple::Handle<AccountDataBox>;
 
 struct PurpleICQ {
     system: ICQSystemHandle,
-    connections: purple::Connections<AccountData>,
+    connections: purple::Connections<AccountDataBox>,
     input_handle: Option<u32>,
 }
 
@@ -60,17 +66,21 @@ impl purple::PrplPlugin for PurpleICQ {
 impl purple::LoginHandler for PurpleICQ {
     fn login(&mut self, account: &mut Account) {
         // Safe as long as we remove the account in "close".
+        let protocol_data: AccountDataBox = Default::default();
         unsafe {
-            self.connections
-                .add(&mut account.get_connection().unwrap(), AccountData {})
+            self.connections.add(
+                &mut account.get_connection().unwrap(),
+                protocol_data.clone(),
+            )
         };
         let phone_number = account.get_username().unwrap().into();
         self.system
             .tx
-            .try_send(PurpleMessage::Login(AccountInfo::new(
-                Handle::from(account),
+            .try_send(PurpleMessage::Login(AccountInfo {
+                handle: Handle::from(account),
+                protocol_data,
                 phone_number,
-            )))
+            }))
             .unwrap();
     }
 }
