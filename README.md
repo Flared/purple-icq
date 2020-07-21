@@ -9,3 +9,7 @@
 1. Install Rust as documented [here](https://www.rust-lang.org/tools/install).
 2. Run ``sudo make install`` for a global install or ``make install-user`` to install in your home directory.
 3. Launch your favourite libpurple client and pick the `ICQ (Web)` protocol.
+
+# Debugging
+
+For verbose output, set the `RUST_LOG` environment variable to one of `debug`, `error`, `info`, `warn`, or `trace`.
