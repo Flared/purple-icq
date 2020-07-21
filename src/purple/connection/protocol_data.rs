@@ -22,6 +22,7 @@ impl<T> Clone for Handle<T> {
 }
 
 unsafe impl<T> Send for Handle<T> {}
+unsafe impl<T> Sync for Handle<T> {}
 
 impl<T> AsMutPtr<ProtocolData<T>> for Handle<T> {
     fn as_mut_ptr(&mut self) -> *mut ProtocolData<T> {
