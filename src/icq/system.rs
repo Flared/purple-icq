@@ -60,6 +60,7 @@ impl ICQSystem {
 
     async fn login(&mut self, account_info: AccountInfo) -> std::result::Result<(), String> {
         log::debug!("login");
+        let phone_number = { account_info.protocol_data.lock().await.phone_number.clone() };
         let handle = &account_info.handle;
         let mut registered_account_info = {
             self.tx
@@ -88,7 +89,7 @@ impl ICQSystem {
                 .ok_or_else(|| "Failed to read settings".to_string())?
         };
         if registered_account_info.is_none() {
-            let info = protocol::register(&account_info.phone_number, || {
+            let info = protocol::register(&phone_number, || {
                 log::debug!("read_code");
                 self.read_code(&account_info.handle)
             })
@@ -125,11 +126,13 @@ impl ICQSystem {
             let session_info = protocol::start_session(&registered_account_info).await;
             log::debug!("Session info: {:?}", session_info);
             match session_info {
-                Ok(_info) => {
+                Ok(session) => {
                     self.tx
                         .connection_proxy(&handle)
                         .set_state(purple::PurpleConnectionState::PURPLE_CONNECTED)
                         .await;
+                    account_info.protocol_data.lock().await.session = Some(session);
+                    let _account_info = account_info.clone();
                 }
                 Err(error) => {
                     let error_message = format!("Failed to start session: {:?}", error);
