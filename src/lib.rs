@@ -15,12 +15,13 @@ lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AccountData {
-    session: icq::protocol::SessionInfo,
+    phone_number: String,
+    session: Option<icq::protocol::SessionInfo>,
 }
 
-pub type AccountDataBox = Arc<Mutex<Option<AccountData>>>;
+pub type AccountDataBox = Arc<Mutex<AccountData>>;
 
 pub type Handle = purple::Handle<AccountDataBox>;
 
@@ -65,21 +66,24 @@ impl purple::PrplPlugin for PurpleICQ {
 
 impl purple::LoginHandler for PurpleICQ {
     fn login(&mut self, account: &mut Account) {
+        let phone_number = account.get_username().unwrap().into();
+        let protocol_data: AccountDataBox = Arc::new(Mutex::new(AccountData {
+            phone_number,
+            session: None,
+        }));
+
         // Safe as long as we remove the account in "close".
-        let protocol_data: AccountDataBox = Default::default();
         unsafe {
             self.connections.add(
                 &mut account.get_connection().unwrap(),
                 protocol_data.clone(),
             )
         };
-        let phone_number = account.get_username().unwrap().into();
         self.system
             .tx
             .try_send(PurpleMessage::Login(AccountInfo {
                 handle: Handle::from(account),
                 protocol_data,
-                phone_number,
             }))
             .unwrap();
     }

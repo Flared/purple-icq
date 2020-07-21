@@ -43,11 +43,10 @@ impl FdSender<SystemMessage> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AccountInfo {
     pub handle: Handle,
     pub protocol_data: AccountDataBox,
-    pub phone_number: String,
 }
 
 #[derive(Debug)]
