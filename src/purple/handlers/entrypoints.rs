@@ -1,15 +1,12 @@
-use super::super::{Account, Connection, Plugin};
+use super::super::{prpl, Account, Connection, Plugin, StrHashTable};
 use super::traits;
-use crate::glib::GList;
-use lazy_static::lazy_static;
+use crate::purple::ffi::{IntoGlibPtr, ToGlibContainerFromIterator};
+use glib::translate::{ToGlibContainerFromSlice, ToGlibPtr};
 use log::{debug, error};
-use std::ffi::CString;
+use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 use std::panic::catch_unwind;
-
-lazy_static! {
-    static ref ICON_FILE: CString = CString::new("icq").unwrap();
-}
+use std::ptr::NonNull;
 
 pub extern "C" fn actions(
     _: *mut purple_sys::PurplePlugin,
@@ -47,10 +44,29 @@ pub extern "C" fn login<P: traits::LoginHandler>(account_ptr: *mut purple_sys::P
 }
 
 pub extern "C" fn chat_info<P: traits::ChatInfoHandler>(
-    _: *mut purple_sys::PurpleConnection,
+    connection_ptr: *mut purple_sys::PurpleConnection,
 ) -> *mut glib_sys::GList {
-    debug!("chat_info");
-    std::ptr::null_mut()
+    match catch_unwind(|| {
+        debug!("chat_info");
+        let mut connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
+        let mut plugin = connection
+            .get_protocol_plugin()
+            .expect("No plugin found for connection");
+        let prpl_plugin = unsafe { plugin.extra::<P>() };
+        ToGlibContainerFromSlice::to_glib_full_from_slice(
+            &prpl_plugin
+                .chat_info(&mut connection)
+                .into_iter()
+                .map(|x| x.into())
+                .collect::<Vec<prpl::ProtoChatEntry>>(),
+        )
+    }) {
+        Ok(r) => r,
+        Err(error) => {
+            error!("Failure in chat_info: {:?}", error);
+            std::ptr::null_mut()
+        }
+    }
 }
 
 pub extern "C" fn close<P: traits::CloseHandler>(
@@ -92,13 +108,7 @@ pub extern "C" fn status_types<P: traits::StatusTypeHandler>(
     match catch_unwind(|| {
         debug!("status_types");
         let mut account = unsafe { Account::from_raw(account_ptr) };
-        GList::from(
-            P::status_types(&mut account)
-                .into_iter()
-                .map(|s| s.into_raw() as *mut c_void)
-                .collect::<Vec<*mut c_void>>(),
-        )
-        .into_raw()
+        ToGlibContainerFromIterator::into_glib_full_from_iter(P::status_types(&mut account))
     }) {
         Ok(r) => r,
         Err(error) => {
@@ -108,18 +118,65 @@ pub extern "C" fn status_types<P: traits::StatusTypeHandler>(
     }
 }
 
-pub extern "C" fn join_chat_handler(
-    _: *mut purple_sys::PurpleConnection,
-    _components: *mut purple_sys::GHashTable,
+pub extern "C" fn join_chat<P: traits::JoinChatHandler>(
+    connection_ptr: *mut purple_sys::PurpleConnection,
+    components: *mut glib_sys::GHashTable,
 ) {
-    println!("join_chat_handler");
+    if let Err(error) = catch_unwind(|| {
+        debug!("close");
+        let mut connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
+        let mut plugin = connection
+            .get_protocol_plugin()
+            .expect("No plugin found for connection");
+        let prpl_plugin = unsafe { plugin.extra::<P>() };
+        let data = unsafe { StrHashTable::from_ptr(components) };
+        prpl_plugin.join_chat(&mut connection, data)
+    }) {
+        error!("Failure in close: {:?}", error)
+    }
 }
-pub extern "C" fn chat_info_defaults_handler(
-    _: *mut purple_sys::PurpleConnection,
-    _: *const c_char,
-) -> *mut purple_sys::GHashTable {
-    println!("chat_info_defaults_handler");
-    std::ptr::null_mut()
+
+pub extern "C" fn get_chat_name<P: traits::GetChatNameHandler>(
+    data: *mut glib_sys::GHashTable,
+) -> *mut c_char {
+    match catch_unwind(|| {
+        debug!("close");
+        let mut data = unsafe { StrHashTable::from_ptr(data) };
+        let name = P::get_chat_name(data.as_mut());
+        name.to_glib_full()
+    }) {
+        Ok(r) => r,
+        Err(error) => {
+            error!("Failure in get_chat_name: {:?}", error);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+pub extern "C" fn chat_info_defaults<P: traits::ChatInfoDefaultsHandler>(
+    connection_ptr: *mut purple_sys::PurpleConnection,
+    c_chat_name: *const c_char,
+) -> *mut glib_sys::GHashTable {
+    match catch_unwind(|| {
+        debug!("chat_info_defaults_handler");
+        let mut connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
+        let mut plugin = connection
+            .get_protocol_plugin()
+            .expect("No plugin found for connection");
+        let prpl_plugin = unsafe { plugin.extra::<P>() };
+
+        let chat_name = NonNull::new(c_chat_name as *mut _)
+            .map(|p| unsafe { CStr::from_ptr(p.as_ptr()).to_string_lossy() });
+        prpl_plugin
+            .chat_info_defaults(&mut connection, chat_name.as_deref())
+            .into_glib_full()
+    }) {
+        Ok(r) => r,
+        Err(error) => {
+            error!("Failure in chat_info_defaults: {:?}", error);
+            std::ptr::null_mut()
+        }
+    }
 }
 pub extern "C" fn roomlist_get_list_handler(
     _: *mut purple_sys::PurpleConnection,

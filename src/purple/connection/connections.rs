@@ -35,7 +35,7 @@ impl<T> Connections<T> {
 
     pub fn get<P>(&mut self, mut ptr: P) -> Option<&mut ProtocolData<T>>
     where
-        P: AsMutPtr<ProtocolData<T>>,
+        P: AsMutPtr<PtrType = ProtocolData<T>>,
     {
         self.protocol_datas
             .get(&ptr.as_mut_ptr())

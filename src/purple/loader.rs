@@ -21,8 +21,6 @@ impl<P> RegisterContext<P> {
         }
     }
     pub fn into_raw(mut self) -> *mut purple_sys::PurplePluginInfo {
-        self.extra_info.join_chat = Some(entrypoints::join_chat_handler);
-        self.extra_info.chat_info_defaults = Some(entrypoints::chat_info_defaults_handler);
         self.extra_info.roomlist_get_list = Some(entrypoints::roomlist_get_list_handler);
 
         self.info.extra_info = Box::into_raw(self.extra_info) as *mut c_void;
@@ -126,7 +124,10 @@ impl_handler_builder! {
 impl_extra_handler_builder! {
     login => LoginHandler
     chat_info => ChatInfoHandler
+    chat_info_defaults => ChatInfoDefaultsHandler
     close => CloseHandler
     status_types => StatusTypeHandler
     list_icon => ListIconHandler
+    join_chat => JoinChatHandler
+    get_chat_name => GetChatNameHandler
 }
