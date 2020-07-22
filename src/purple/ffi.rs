@@ -38,10 +38,10 @@ where
         let mut list: *mut glib_sys::GList = std::ptr::null_mut();
         unsafe {
             for ptr in iter.into_iter().map(|v| v.into_glib_full()) {
-                list = glib_sys::g_list_append(list, Ptr::to(ptr));
+                list = glib_sys::g_list_prepend(list, Ptr::to(ptr));
             }
+            glib_sys::g_list_reverse(list)
         }
-        list
     }
 }
 
