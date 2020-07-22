@@ -2,10 +2,10 @@ use async_std::sync::{Arc, Mutex};
 use lazy_static::lazy_static;
 use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::io::Read;
 
-mod glib;
 mod icq;
 #[macro_use]
 mod purple;
@@ -13,6 +13,12 @@ mod messages;
 
 lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
+    static ref STATUS_ONLINE_ID: CString = CString::new("online").unwrap();
+    static ref STATUS_ONLINE_NAME: CString = CString::new("Online").unwrap();
+    static ref STATUS_OFFLINE_ID: CString = CString::new("offline").unwrap();
+    static ref STATUS_OFFLINE_NAME: CString = CString::new("Offline").unwrap();
+    static ref CHAT_INFO_SN: CString = CString::new("sn").unwrap();
+    static ref CHAT_INFO_SN_NAME: CString = CString::new("Chat ID").unwrap();
 }
 
 #[derive(Debug, Default)]
@@ -59,6 +65,9 @@ impl purple::PrplPlugin for PurpleICQ {
             .enable_login()
             .enable_load()
             .enable_close()
+            .enable_chat_info()
+            .enable_chat_info_defaults()
+            .enable_join_chat()
             .enable_list_icon()
             .enable_status_types()
     }
@@ -98,14 +107,14 @@ impl purple::StatusTypeHandler for PurpleICQ {
         vec![
             StatusType::new(
                 PurpleStatusPrimitive::PURPLE_STATUS_AVAILABLE,
-                "online".into(),
-                "Online".into(),
+                Some(&STATUS_ONLINE_ID),
+                Some(&STATUS_ONLINE_NAME),
                 true,
             ),
             StatusType::new(
                 PurpleStatusPrimitive::PURPLE_STATUS_OFFLINE,
-                "offline".into(),
-                "Offline".into(),
+                Some(&STATUS_OFFLINE_ID),
+                Some(&STATUS_OFFLINE_NAME),
                 true,
             ),
         ]
@@ -128,7 +137,31 @@ impl purple::ListIconHandler for PurpleICQ {
     }
 }
 
-impl purple::ChatInfoHandler for PurpleICQ {}
+impl purple::ChatInfoHandler for PurpleICQ {
+    fn chat_info(&mut self, _connection: &mut Connection) -> Vec<purple::prpl::ChatEntry> {
+        vec![purple::prpl::ChatEntry {
+            label: &CHAT_INFO_SN_NAME,
+            identifier: &CHAT_INFO_SN,
+            required: true,
+            is_int: false,
+            min: 0,
+            max: 0,
+            secret: false,
+        }]
+    }
+}
+
+impl purple::ChatInfoDefaultsHandler for PurpleICQ {
+    fn chat_info_defaults(
+        &mut self,
+        _connection: &mut Connection,
+        _chat_name: Option<&str>,
+    ) -> HashMap<&'static CStr, String> {
+        let mut defaults = HashMap::new();
+        defaults.insert(CHAT_INFO_SN.as_c_str(), "test-default".into());
+        defaults
+    }
+}
 
 impl purple::InputHandler for PurpleICQ {
     fn input(&mut self, _fd: i32, _cond: purple::PurpleInputCondition) {
@@ -151,6 +184,13 @@ impl purple::InputHandler for PurpleICQ {
                 }
             }
         };
+    }
+}
+
+impl purple::JoinChatHandler for PurpleICQ {
+    fn join_chat(&mut self, _connection: &mut Connection, data: &HashMap<String, String>) {
+        let sn = data.get("sn");
+        log::info!("Joining chat: {:?}", sn);
     }
 }
 

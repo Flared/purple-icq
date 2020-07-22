@@ -1,32 +1,31 @@
+use super::ffi::{mut_override, AsPtr};
+use glib::translate::ToGlib;
 pub use purple_sys::PurpleStatusPrimitive;
-use std::ffi::CString;
-pub struct StatusType {
-    ptr: *mut purple_sys::PurpleStatusType,
-}
+use std::ffi::CStr;
+
+pub struct StatusType(*mut purple_sys::PurpleStatusType);
 
 impl StatusType {
     pub fn new(
         primitive: PurpleStatusPrimitive,
-        id: String,
-        name: String,
+        id: Option<&'static CStr>,
+        name: Option<&'static CStr>,
         user_settable: bool,
     ) -> Self {
-        let status_type_ptr = unsafe {
-            purple_sys::purple_status_type_new(
+        unsafe {
+            Self(purple_sys::purple_status_type_new(
                 primitive,
-                CString::new(id).unwrap().into_raw(),
-                CString::new(name).unwrap().into_raw(),
-                user_settable as i32,
-            )
-        };
-        Self {
-            ptr: status_type_ptr,
+                id.map_or_else(std::ptr::null_mut, |s| mut_override(s.as_ptr())),
+                name.map_or_else(std::ptr::null_mut, |s| mut_override(s.as_ptr())),
+                user_settable.to_glib(),
+            ))
         }
     }
+}
 
-    pub fn into_raw(self) -> *mut purple_sys::PurpleStatusType {
-        let ptr = self.ptr;
-        std::mem::forget(self);
-        ptr
+impl AsPtr for StatusType {
+    type PtrType = purple_sys::PurpleStatusType;
+    fn as_ptr(&self) -> *const Self::PtrType {
+        self.0
     }
 }

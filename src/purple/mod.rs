@@ -13,6 +13,7 @@ pub mod ffi;
 mod handlers;
 mod loader;
 mod plugin;
+pub mod prpl;
 mod status_type;
 
 pub trait PrplPlugin {

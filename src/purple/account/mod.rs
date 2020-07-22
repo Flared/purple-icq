@@ -8,7 +8,8 @@ use std::panic::catch_unwind;
 
 pub mod settings;
 
-impl AsMutPtr<purple_sys::PurpleAccount> for Account {
+impl AsMutPtr for Account {
+    type PtrType = purple_sys::PurpleAccount;
     fn as_mut_ptr(&mut self) -> *mut purple_sys::PurpleAccount {
         self.0
     }

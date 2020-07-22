@@ -1,4 +1,5 @@
-use super::super::{Account, Connection, Plugin, StatusType};
+use super::super::{prpl, Account, Connection, Plugin, StatusType};
+use std::collections::HashMap;
 use std::ffi::CStr;
 pub trait LoadHandler {
     fn load(&mut self, plugin: &Plugin) -> bool;
@@ -19,7 +20,22 @@ pub trait StatusTypeHandler {
 pub trait ListIconHandler {
     fn list_icon(account: &mut Account) -> &'static CStr;
 }
-pub trait ChatInfoHandler {}
+
+pub trait ChatInfoHandler {
+    fn chat_info(&mut self, connection: &mut Connection) -> Vec<prpl::ChatEntry>;
+}
+
+pub trait ChatInfoDefaultsHandler {
+    fn chat_info_defaults(
+        &mut self,
+        connection: &mut Connection,
+        chat_name: Option<&str>,
+    ) -> HashMap<&'static CStr, String>;
+}
+
+pub trait JoinChatHandler {
+    fn join_chat(&mut self, connection: &mut Connection, data: &HashMap<String, String>);
+}
 
 pub trait InputHandler {
     fn input(&mut self, fd: i32, cond: crate::purple::PurpleInputCondition);
