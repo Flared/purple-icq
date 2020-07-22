@@ -1,3 +1,4 @@
+use super::poller;
 use super::protocol;
 use crate::messages::{AccountInfo, FdSender, ICQSystemHandle, PurpleMessage, SystemMessage};
 use crate::purple;
@@ -132,7 +133,10 @@ impl ICQSystem {
                         .set_state(purple::PurpleConnectionState::PURPLE_CONNECTED)
                         .await;
                     account_info.protocol_data.lock().await.session = Some(session);
-                    let _account_info = account_info.clone();
+                    async_std::task::spawn(poller::fetch_events_loop(
+                        self.tx.clone(),
+                        account_info.clone(),
+                    ));
                 }
                 Err(error) => {
                     let error_message = format!("Failed to start session: {:?}", error);

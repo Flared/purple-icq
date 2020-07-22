@@ -5,6 +5,10 @@ PHONY: .all
 format:
 	cargo fmt
 
+.PHONY: clippy
+clippy:
+	cargo clippy
+
 .PHONY: build
 build:
 	cargo build

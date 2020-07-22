@@ -79,6 +79,12 @@ impl<'a> AccountProxy<'a> {
         rx.recv().await.ok().flatten()
     }
 
+    pub async fn is_disconnected(&mut self) -> bool {
+        self.exec(move |account| account.is_disconnected())
+            .await
+            .unwrap_or(false)
+    }
+
     pub async fn set_settings<T: 'static + serde::Serialize + Send>(
         &mut self,
         settings: T,
