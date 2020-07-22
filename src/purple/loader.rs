@@ -129,4 +129,5 @@ impl_extra_handler_builder! {
     status_types => StatusTypeHandler
     list_icon => ListIconHandler
     join_chat => JoinChatHandler
+    get_chat_name => GetChatNameHandler
 }

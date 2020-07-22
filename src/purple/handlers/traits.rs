@@ -1,6 +1,6 @@
-use super::super::{prpl, Account, Connection, Plugin, StatusType};
-use std::collections::HashMap;
+use super::super::{prpl, Account, Connection, Plugin, StatusType, StrHashTable};
 use std::ffi::CStr;
+
 pub trait LoadHandler {
     fn load(&mut self, plugin: &Plugin) -> bool;
 }
@@ -30,11 +30,15 @@ pub trait ChatInfoDefaultsHandler {
         &mut self,
         connection: &mut Connection,
         chat_name: Option<&str>,
-    ) -> HashMap<&'static CStr, String>;
+    ) -> StrHashTable;
 }
 
 pub trait JoinChatHandler {
-    fn join_chat(&mut self, connection: &mut Connection, data: &HashMap<String, String>);
+    fn join_chat(&mut self, connection: &mut Connection, data: Option<StrHashTable>);
+}
+
+pub trait GetChatNameHandler {
+    fn get_chat_name(data: Option<&mut StrHashTable>) -> Option<String>;
 }
 
 pub trait InputHandler {

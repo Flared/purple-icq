@@ -2,7 +2,6 @@ use async_std::sync::{Arc, Mutex};
 use lazy_static::lazy_static;
 use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
-use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::io::Read;
 
@@ -68,6 +67,7 @@ impl purple::PrplPlugin for PurpleICQ {
             .enable_chat_info()
             .enable_chat_info_defaults()
             .enable_join_chat()
+            .enable_get_chat_name()
             .enable_list_icon()
             .enable_status_types()
     }
@@ -156,10 +156,25 @@ impl purple::ChatInfoDefaultsHandler for PurpleICQ {
         &mut self,
         _connection: &mut Connection,
         _chat_name: Option<&str>,
-    ) -> HashMap<&'static CStr, String> {
-        let mut defaults = HashMap::new();
-        defaults.insert(CHAT_INFO_SN.as_c_str(), "test-default".into());
+    ) -> purple::StrHashTable {
+        let mut defaults = purple::StrHashTable::new();
+        defaults.insert(CHAT_INFO_SN.as_c_str(), "test-default");
         defaults
+    }
+}
+
+impl purple::JoinChatHandler for PurpleICQ {
+    fn join_chat(&mut self, _connection: &mut Connection, data: Option<StrHashTable>) {
+        if let Some(data) = data {
+            let sn = data.lookup(CHAT_INFO_SN.as_c_str());
+            log::info!("Joining chat: {:?}", sn);
+        }
+    }
+}
+
+impl purple::GetChatNameHandler for PurpleICQ {
+    fn get_chat_name(data: Option<&mut purple::StrHashTable>) -> Option<String> {
+        data.and_then(|h| h.lookup(CHAT_INFO_SN.as_c_str()).map(Into::into))
     }
 }
 
@@ -184,13 +199,6 @@ impl purple::InputHandler for PurpleICQ {
                 }
             }
         };
-    }
-}
-
-impl purple::JoinChatHandler for PurpleICQ {
-    fn join_chat(&mut self, _connection: &mut Connection, data: &HashMap<String, String>) {
-        let sn = data.get("sn");
-        log::info!("Joining chat: {:?}", sn);
     }
 }
 

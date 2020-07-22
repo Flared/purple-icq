@@ -1,6 +1,7 @@
 pub use self::account::Account;
 pub use self::connection::{Connection, Connections, Handle};
 pub use self::handlers::traits::*;
+pub use self::hashtable::StrHashTable;
 pub use self::loader::{PrplInfo, PrplPluginLoader, RegisterContext};
 pub use self::plugin::Plugin;
 pub use self::status_type::{PurpleStatusPrimitive, StatusType};
@@ -11,6 +12,7 @@ pub mod account;
 mod connection;
 pub mod ffi;
 mod handlers;
+mod hashtable;
 mod loader;
 mod plugin;
 pub mod prpl;

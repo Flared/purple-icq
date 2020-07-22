@@ -7,12 +7,12 @@ pub fn mut_override<T>(ptr: *const T) -> *mut T {
     ptr as *mut T
 }
 pub trait IntoGlibPtr<P> {
-    fn into_glib_full(self) -> *const P;
+    fn into_glib_full(self) -> *mut P;
 }
 
-impl<P: AsPtr> IntoGlibPtr<P::PtrType> for P {
-    fn into_glib_full(self) -> *const P::PtrType {
-        let ptr = self.as_ptr();
+impl<P: AsMutPtr> IntoGlibPtr<P::PtrType> for P {
+    fn into_glib_full(mut self) -> *mut P::PtrType {
+        let ptr = self.as_mut_ptr();
         std::mem::forget(self);
         ptr
     }

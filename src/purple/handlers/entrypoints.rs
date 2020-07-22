@@ -1,7 +1,7 @@
-use super::super::{prpl, Account, Connection, Plugin};
+use super::super::{prpl, Account, Connection, Plugin, StrHashTable};
 use super::traits;
-use crate::purple::ffi::ToGlibContainerFromIterator;
-use glib::translate::{FromGlibPtrContainer, ToGlibContainerFromSlice};
+use crate::purple::ffi::{IntoGlibPtr, ToGlibContainerFromIterator};
+use glib::translate::{ToGlibContainerFromSlice, ToGlibPtr};
 use log::{debug, error};
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
@@ -129,10 +129,27 @@ pub extern "C" fn join_chat<P: traits::JoinChatHandler>(
             .get_protocol_plugin()
             .expect("No plugin found for connection");
         let prpl_plugin = unsafe { plugin.extra::<P>() };
-        let data = unsafe { FromGlibPtrContainer::from_glib_none(components) };
-        prpl_plugin.join_chat(&mut connection, &data)
+        let data = unsafe { StrHashTable::from_ptr(components) };
+        prpl_plugin.join_chat(&mut connection, data)
     }) {
         error!("Failure in close: {:?}", error)
+    }
+}
+
+pub extern "C" fn get_chat_name<P: traits::GetChatNameHandler>(
+    data: *mut glib_sys::GHashTable,
+) -> *mut c_char {
+    match catch_unwind(|| {
+        debug!("close");
+        let mut data = unsafe { StrHashTable::from_ptr(data) };
+        let name = P::get_chat_name(data.as_mut());
+        name.to_glib_full()
+    }) {
+        Ok(r) => r,
+        Err(error) => {
+            error!("Failure in get_chat_name: {:?}", error);
+            std::ptr::null_mut()
+        }
     }
 }
 
@@ -150,9 +167,9 @@ pub extern "C" fn chat_info_defaults<P: traits::ChatInfoDefaultsHandler>(
 
         let chat_name = NonNull::new(c_chat_name as *mut _)
             .map(|p| unsafe { CStr::from_ptr(p.as_ptr()).to_string_lossy() });
-        ToGlibContainerFromIterator::into_glib_full_from_iter(
-            prpl_plugin.chat_info_defaults(&mut connection, chat_name.as_deref()),
-        )
+        prpl_plugin
+            .chat_info_defaults(&mut connection, chat_name.as_deref())
+            .into_glib_full()
     }) {
         Ok(r) => r,
         Err(error) => {
