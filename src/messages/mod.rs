@@ -58,9 +58,34 @@ pub struct AccountInfo {
     pub protocol_data: AccountDataBox,
 }
 
+#[derive(Debug, Clone)]
+pub struct PurpleMessageWithHandle<T> {
+    pub handle: Handle,
+    pub protocol_data: AccountDataBox,
+    pub message_data: T,
+}
+
+#[derive(Debug, Clone)]
+pub struct JoinChatMessageData {
+    pub stamp: String,
+}
+
+pub type JoinChatMessage = PurpleMessageWithHandle<JoinChatMessageData>;
+
 #[derive(Debug)]
 pub enum PurpleMessage {
     Login(AccountInfo),
+    JoinChat(JoinChatMessage),
+}
+
+impl PurpleMessage {
+    pub fn join_chat(handle: Handle, protocol_data: AccountDataBox, stamp: String) -> Self {
+        Self::JoinChat(JoinChatMessage {
+            handle,
+            protocol_data,
+            message_data: JoinChatMessageData { stamp },
+        })
+    }
 }
 
 pub enum SystemMessage {

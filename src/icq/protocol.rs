@@ -13,6 +13,8 @@ const CAPS: &str = "094613584C7F11D18222444553540000,0946135C4C7F11D182224445535
 const EVENTS: &str = "myInfo,presence,buddylist,typing,hiddenChat,hist,mchat,sentIM,imState,dataIM,offlineIM,userAddedToBuddyList,service,lifestream,apps,permitDeny,diff,webrtcMsg";
 const PRESENCE_FIELDS: &str = "aimId,displayId,friendly,friendlyName,state,userType,statusMsg,statusTime,lastseen,ssl,mute,abContactName,abPhoneNumber,abPhones,official,quiet,autoAddition,largeIconId,nick,userState";
 
+type ChatInfo = client::GetChatInfoResponseData;
+
 #[derive(Debug)]
 pub enum Error {
     ApiError(client::Error),
@@ -129,6 +131,33 @@ pub async fn fetch_events(session_info: &SessionInfo, seq_num: u32) -> Result<Ve
         .map_err(Error::ApiError)?;
 
     Ok(fetch_events_response.response.data.events)
+}
+
+pub async fn get_chat_info(session: &SessionInfo, stamp: &str) -> Result<ChatInfo> {
+    let get_chat_info_body = client::GetChatInfoBody {
+        aimsid: &session.aim_sid,
+        req_id: &request_id(),
+        params: client::GetChatInfoBodyParams {
+            member_limit: 50,
+            stamp,
+        },
+    };
+    client::get_chat_info(&get_chat_info_body)
+        .await
+        .map_err(Error::ApiError)
+        .map(|r| r.results)
+}
+
+pub async fn join_chat(session: &SessionInfo, stamp: &str) -> Result<()> {
+    let join_chat_body = client::JoinChatBody {
+        aimsid: &session.aim_sid,
+        req_id: &request_id(),
+        params: client::StampBodyParams { stamp },
+    };
+    client::join_chat(&join_chat_body)
+        .await
+        .map_err(Error::ApiError)?;
+    Ok(())
 }
 
 fn request_id() -> String {

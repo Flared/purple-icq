@@ -34,7 +34,7 @@ pub trait ChatInfoDefaultsHandler {
 }
 
 pub trait JoinChatHandler {
-    fn join_chat(&mut self, connection: &mut Connection, data: Option<StrHashTable>);
+    fn join_chat(&mut self, connection: &mut Connection, data: Option<&mut StrHashTable>);
 }
 
 pub trait GetChatNameHandler {

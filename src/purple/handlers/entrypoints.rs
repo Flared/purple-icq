@@ -129,8 +129,8 @@ pub extern "C" fn join_chat<P: traits::JoinChatHandler>(
             .get_protocol_plugin()
             .expect("No plugin found for connection");
         let prpl_plugin = unsafe { plugin.extra::<P>() };
-        let data = unsafe { StrHashTable::from_ptr(components) };
-        prpl_plugin.join_chat(&mut connection, data)
+        let mut data = unsafe { StrHashTable::from_ptr(components) };
+        prpl_plugin.join_chat(&mut connection, data.as_mut())
     }) {
         error!("Failure in close: {:?}", error)
     }

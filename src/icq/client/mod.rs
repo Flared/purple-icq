@@ -8,6 +8,8 @@ const LOGIN_WITH_PHONE_NUMBER_URL: &str =
     "https://u.icq.net/api/v14/smsreg/loginWithPhoneNumber.php";
 const START_SESSION_URL: &str = "https://u.icq.net/api/v14/wim/aim/startSession?";
 const FETCH_EVENTS_URL: &str = "https://u.icq.net/api/v14/bos/bos-m001f/aim/fetchEvents?";
+const GET_CHAT_INFO_URL: &str = "https://u.icq.net/api/v14/rapi/getChatInfo";
+const JOIN_CHAT_URL: &str = "https://u.icq.net/api/v14/rapi/joinChat";
 
 #[derive(Debug)]
 pub enum Error {
@@ -77,6 +79,22 @@ pub struct LoginWithPhoneNumberBody<'a> {
 pub struct WebIcqResponse<T> {
     pub response: WebIcqData<T>,
 }
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RapiBody<'a, T> {
+    pub aimsid: &'a str,
+    pub req_id: &'a str,
+    pub params: T,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RapiResponse<T> {
+    pub results: T,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct EmptyResponse {}
 
 #[derive(Deserialize, Debug)]
 pub struct WebIcqData<T> {
@@ -159,6 +177,53 @@ pub struct StartSessionResponseMyInfo {
     pub aim_id: String,
 }
 
+pub type GetChatInfoBody<'a> = RapiBody<'a, GetChatInfoBodyParams<'a>>;
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GetChatInfoBodyParams<'a> {
+    pub member_limit: u32,
+    pub stamp: &'a str,
+}
+
+type GetChatInfoResponse = RapiResponse<GetChatInfoResponseData>;
+
+#[derive(Serialize, Debug)]
+pub struct StampBodyParams<'a> {
+    pub stamp: &'a str,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GetChatInfoResponseData {
+    pub name: String,
+    pub stamp: String,
+    pub create_time: usize,
+    pub public: bool,
+    pub live: bool,
+    pub controlled: bool,
+    pub members_count: usize,
+    pub admins_count: usize,
+    pub default_role: String,
+    pub regions: String,
+    pub sn: String,
+    pub abuse_reports_current_count: usize,
+    pub persons: Vec<ChatInfoResponsePerson>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatInfoResponsePerson {
+    pub sn: String,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub friendly: Option<String>,
+}
+
+pub type JoinChatBody<'a> = RapiBody<'a, StampBodyParams<'a>>;
+
+pub type JoinChatResponse = RapiResponse<EmptyResponse>;
+
 pub async fn send_code(body: &SendCodeBody<'_>) -> Result<SendCodeResponse> {
     post_json(SEND_CODE_URL, body).await
 }
@@ -179,6 +244,14 @@ pub async fn fetch_events(body: &FetchEventsBody<'_>) -> Result<FetchEventsRespo
     let params = serde_urlencoded::to_string(body).map_err(Error::UrlEncodedSerializationError)?;
     let url = FETCH_EVENTS_URL.to_string() + &params;
     get_json(&url).await
+}
+
+pub async fn get_chat_info(body: &GetChatInfoBody<'_>) -> Result<GetChatInfoResponse> {
+    post_json(GET_CHAT_INFO_URL, body).await
+}
+
+pub async fn join_chat(body: &JoinChatBody<'_>) -> Result<JoinChatResponse> {
+    post_json(JOIN_CHAT_URL, body).await
 }
 
 async fn get_json<T: serde::de::DeserializeOwned>(url: &str) -> Result<T> {
