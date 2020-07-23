@@ -1,11 +1,13 @@
 use self::account_proxy::AccountProxy;
 use self::connection_proxy::ConnectionProxy;
+use self::handle_proxy::HandleProxy;
 use crate::purple::{Account, Connection};
-use crate::{AccountDataBox, Handle};
+use crate::{AccountDataBox, Handle, ProtocolData, PurpleICQ};
 use async_std::sync::{Receiver, Sender};
 
 mod account_proxy;
 mod connection_proxy;
+mod handle_proxy;
 
 pub struct FdSender<T> {
     os_sender: os_pipe::PipeWriter,
@@ -41,6 +43,13 @@ impl FdSender<SystemMessage> {
             sender: self,
         }
     }
+
+    pub fn handle_proxy<'a>(&'a mut self, handle: &Handle) -> HandleProxy<'a> {
+        HandleProxy {
+            handle: handle.clone(),
+            sender: self,
+        }
+    }
 }
 
 impl<T> Clone for FdSender<T> {
@@ -70,14 +79,6 @@ pub struct JoinChatMessageData {
     pub stamp: String,
 }
 
-#[derive(Debug, Clone)]
-pub struct ChatJoinedInfo {
-    pub handle: Handle,
-    pub stamp: String,
-    pub sn: String,
-    pub title: String,
-}
-
 pub type JoinChatMessage = PurpleMessageWithHandle<JoinChatMessageData>;
 
 #[derive(Debug)]
@@ -105,7 +106,10 @@ pub enum SystemMessage {
         handle: Handle,
         function: Box<dyn FnOnce(&mut Connection) + Send + 'static>,
     },
-    ChatJoined(ChatJoinedInfo),
+    ExecHandle {
+        handle: Handle,
+        function: Box<dyn FnOnce(&mut PurpleICQ, &mut ProtocolData) + Send + 'static>,
+    },
 }
 
 pub struct ICQSystemHandle {

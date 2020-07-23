@@ -33,7 +33,7 @@ impl<T> Connections<T> {
         unsafe { Box::from_raw(protocol_data_ptr) };
     }
 
-    pub fn get<P>(&mut self, mut ptr: P) -> Option<&mut ProtocolData<T>>
+    pub fn get<'b, P>(&mut self, mut ptr: P) -> Option<&'b mut ProtocolData<T>>
     where
         P: AsMutPtr<PtrType = ProtocolData<T>>,
     {

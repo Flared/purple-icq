@@ -1,11 +1,10 @@
 use super::poller;
 use super::protocol;
 use crate::messages::{
-    AccountInfo, ChatJoinedInfo, FdSender, ICQSystemHandle, JoinChatMessage, PurpleMessage,
-    SystemMessage,
+    AccountInfo, FdSender, ICQSystemHandle, JoinChatMessage, PurpleMessage, SystemMessage,
 };
-use crate::purple;
 use crate::Handle;
+use crate::{purple, ChatInfo};
 use async_std::sync::{channel, Receiver};
 
 const CHANNEL_CAPACITY: usize = 1024;
@@ -195,13 +194,19 @@ impl ICQSystem {
             .map_err(|e| format!("Failed to get chat info: {:?}", e))?;
 
         self.tx
-            .send(SystemMessage::ChatJoined(ChatJoinedInfo {
-                handle: message.handle,
-                sn: chat_info.sn,
-                stamp: stamp,
-                title: chat_info.name,
-            }))
+            .handle_proxy(&message.handle)
+            .exec(move |plugin, protocol_data| {
+                let connection = &mut protocol_data.connection;
+                let chat_info = ChatInfo {
+                    sn: chat_info.sn,
+                    stamp: stamp.clone(),
+                    title: chat_info.name,
+                };
+                plugin.chat_joined(connection, &chat_info);
+                plugin.conversation_joined(connection, &chat_info);
+            })
             .await;
+
         Ok(())
     }
 }

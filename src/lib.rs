@@ -1,6 +1,6 @@
 use async_std::sync::{Arc, Mutex};
 use lazy_static::lazy_static;
-use messages::{AccountInfo, ChatJoinedInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
+use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
 use std::ffi::{CStr, CString};
 use std::io::Read;
@@ -20,6 +20,13 @@ lazy_static! {
     static ref CHAT_INFO_SN_NAME: CString = CString::new("Chat ID").unwrap();
 }
 
+#[derive(Debug, Clone)]
+pub struct ChatInfo {
+    pub stamp: String,
+    pub sn: String,
+    pub title: String,
+}
+
 #[derive(Debug, Default)]
 pub struct AccountData {
     phone_number: String,
@@ -27,10 +34,10 @@ pub struct AccountData {
 }
 
 pub type AccountDataBox = Arc<Mutex<AccountData>>;
-
 pub type Handle = purple::Handle<AccountDataBox>;
+pub type ProtocolData = purple::ProtocolData<AccountDataBox>;
 
-struct PurpleICQ {
+pub struct PurpleICQ {
     system: ICQSystemHandle,
     connections: purple::Connections<AccountDataBox>,
     input_handle: Option<u32>,
@@ -157,10 +164,10 @@ impl purple::ChatInfoDefaultsHandler for PurpleICQ {
     fn chat_info_defaults(
         &mut self,
         _connection: &mut Connection,
-        _chat_name: Option<&str>,
+        chat_name: Option<&str>,
     ) -> purple::StrHashTable {
-        let mut defaults = purple::StrHashTable::new();
-        defaults.insert(CHAT_INFO_SN.as_c_str(), "test-default");
+        let mut defaults = purple::StrHashTable::default();
+        defaults.insert(CHAT_INFO_SN.as_c_str(), chat_name.unwrap_or(""));
         defaults
     }
 }
@@ -259,13 +266,54 @@ impl PurpleICQ {
                         None
                     });
             }
-            SystemMessage::ChatJoined(info) => {
-                self.chat_joined(info);
+            SystemMessage::ExecHandle { handle, function } => {
+                self.connections
+                    .get(handle)
+                    .map(|mut protocol_data| function(self, &mut protocol_data))
+                    .or_else(|| {
+                        log::warn!("The account connection has been closed");
+                        None
+                    });
             }
         }
     }
 
-    fn chat_joined(&self, _info: ChatJoinedInfo) {}
+    pub fn chat_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {
+        if info.sn.ends_with("@chat.agent") {
+            self.group_chat_joined(connection, info)
+        } else {
+            todo!()
+        }
+    }
+
+    fn group_chat_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {
+        // Chat already joined.
+        let mut account = connection.get_account();
+        let chat = purple::Chat::find(&mut account, &info.sn);
+        if chat.is_some() {
+            // TODO: Merge existing account info
+            return;
+        }
+
+        let components = self.chat_info_defaults(connection, Some(&info.stamp));
+        let mut chat = purple::Chat::new(&mut account, &info.title, components);
+        chat.add_to_blist(&mut self.icq_group(), None);
+    }
+
+    fn icq_group(&mut self) -> purple::Group {
+        Group::find("ICQ").unwrap_or_else(|| {
+            let mut group = purple::Group::new("ICQ");
+            group.add_to_blist(None);
+            group
+        })
+    }
+
+    pub fn conversation_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {
+        let mut conversation = connection.serv_got_joined_chat(&info.sn).unwrap();
+        conversation.set_data("sn", &info.sn);
+        conversation.set_data("stamp", &info.stamp);
+        conversation.set_title(&info.title);
+    }
 }
 
 purple_prpl_plugin!(PurpleICQ);
