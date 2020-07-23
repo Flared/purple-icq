@@ -1,6 +1,6 @@
 use async_std::sync::{Arc, Mutex};
 use lazy_static::lazy_static;
-use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
+use messages::{AccountInfo, ChatJoinedInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
 use std::ffi::{CStr, CString};
 use std::io::Read;
@@ -67,6 +67,8 @@ impl purple::PrplPlugin for PurpleICQ {
             .enable_chat_info()
             .enable_chat_info_defaults()
             .enable_join_chat()
+            .enable_chat_leave()
+            .enable_convo_closed()
             .enable_get_chat_name()
             .enable_list_icon()
             .enable_status_types()
@@ -194,6 +196,18 @@ impl purple::JoinChatHandler for PurpleICQ {
     }
 }
 
+impl purple::ChatLeaveHandler for PurpleICQ {
+    fn chat_leave(&mut self, _connection: &mut Connection, id: i32) {
+        log::info!("Chat leave: {}", id)
+    }
+}
+
+impl purple::ConvoClosedHandler for PurpleICQ {
+    fn convo_closed(&mut self, _connection: &mut Connection, who: Option<&str>) {
+        log::info!("Convo closed: {:?}", who)
+    }
+}
+
 impl purple::GetChatNameHandler for PurpleICQ {
     fn get_chat_name(data: Option<&mut purple::StrHashTable>) -> Option<String> {
         data.and_then(|h| h.lookup(CHAT_INFO_SN.as_c_str()).map(Into::into))
@@ -245,8 +259,13 @@ impl PurpleICQ {
                         None
                     });
             }
+            SystemMessage::ChatJoined(info) => {
+                self.chat_joined(info);
+            }
         }
     }
+
+    fn chat_joined(&self, _info: ChatJoinedInfo) {}
 }
 
 purple_prpl_plugin!(PurpleICQ);

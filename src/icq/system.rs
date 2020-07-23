@@ -1,7 +1,8 @@
 use super::poller;
 use super::protocol;
 use crate::messages::{
-    AccountInfo, FdSender, ICQSystemHandle, JoinChatMessage, PurpleMessage, SystemMessage,
+    AccountInfo, ChatJoinedInfo, FdSender, ICQSystemHandle, JoinChatMessage, PurpleMessage,
+    SystemMessage,
 };
 use crate::purple;
 use crate::Handle;
@@ -194,13 +195,12 @@ impl ICQSystem {
             .map_err(|e| format!("Failed to get chat info: {:?}", e))?;
 
         self.tx
-            .connection_proxy(&message.handle)
-            .exec(move |connection| {
-                let mut conversation = connection.serv_got_joined_chat(&stamp).unwrap();
-                conversation.set_data("sn", &chat_info.sn);
-                conversation.set_data("stamp", &stamp);
-                conversation.set_title(&chat_info.name);
-            })
+            .send(SystemMessage::ChatJoined(ChatJoinedInfo {
+                handle: message.handle,
+                sn: chat_info.sn,
+                stamp: stamp,
+                title: chat_info.name,
+            }))
             .await;
         Ok(())
     }

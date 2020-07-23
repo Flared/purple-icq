@@ -70,6 +70,14 @@ pub struct JoinChatMessageData {
     pub stamp: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct ChatJoinedInfo {
+    pub handle: Handle,
+    pub stamp: String,
+    pub sn: String,
+    pub title: String,
+}
+
 pub type JoinChatMessage = PurpleMessageWithHandle<JoinChatMessageData>;
 
 #[derive(Debug)]
@@ -97,6 +105,7 @@ pub enum SystemMessage {
         handle: Handle,
         function: Box<dyn FnOnce(&mut Connection) + Send + 'static>,
     },
+    ChatJoined(ChatJoinedInfo),
 }
 
 pub struct ICQSystemHandle {
