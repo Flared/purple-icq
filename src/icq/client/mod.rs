@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use surf::middleware::HttpClient;
 
 pub mod events;
+pub mod try_result;
 
 const SEND_CODE_URL: &str = "https://u.icq.net/api/v14/rapi/auth/sendCode";
 const LOGIN_WITH_PHONE_NUMBER_URL: &str =
@@ -121,7 +122,7 @@ pub struct FetchEventsResponseData {
     pub fetch_base_url: String,
     pub fetch_timeout: u32,
     pub time_to_next_fetch: u32,
-    pub events: Vec<events::Event>,
+    pub events: Vec<try_result::TryResult<events::Event>>,
 }
 
 #[derive(Serialize, Debug)]

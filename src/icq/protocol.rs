@@ -1,5 +1,6 @@
 use super::client;
 use super::client::events::Event;
+use super::client::try_result::TryResult;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -113,7 +114,10 @@ pub async fn start_session(registration_data: &RegistrationData) -> Result<Sessi
     })
 }
 
-pub async fn fetch_events(session_info: &SessionInfo, seq_num: u32) -> Result<Vec<Event>> {
+pub async fn fetch_events(
+    session_info: &SessionInfo,
+    seq_num: u32,
+) -> Result<Vec<TryResult<Event>>> {
     let fetch_events_body = client::FetchEventsBody {
         aimsid: &session_info.aim_sid,
         bg: 1,
