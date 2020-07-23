@@ -13,7 +13,7 @@ crate-type = ["dylib"]
 libc = "*"
 glib-sys = "*"
 glib = "*"
-purple-sys = {git = "https://github.com/flared/libpurple-rust", rev = "8f3ec979c89a504edea811ba0619bc2b895289a4"}
+purple-sys = {git = "https://github.com/flared/libpurple-rust", rev = "bdee978aead20001cf56264f857eba27c5ea7f62"}
 log = "0.4.8"
 env_logger = "0.7"
 lazy_static = "1.4.0"

@@ -1,4 +1,4 @@
-use crate::purple::ffi::AsMutPtr;
+use crate::purple::ffi::AsPtr;
 use crate::purple::{Account, Connection};
 
 pub struct Handle<T>(*mut ProtocolData<T>);
@@ -6,6 +6,12 @@ pub struct Handle<T>(*mut ProtocolData<T>);
 impl<T> std::fmt::Debug for Handle<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Handle({:?})", self.0)
+    }
+}
+
+impl<T> From<&mut Connection> for Handle<T> {
+    fn from(connection: &mut Connection) -> Handle<T> {
+        Handle(connection.get_protocol_data() as *mut ProtocolData<T>)
     }
 }
 
@@ -24,9 +30,16 @@ impl<T> Clone for Handle<T> {
 unsafe impl<T> Send for Handle<T> {}
 unsafe impl<T> Sync for Handle<T> {}
 
-impl<T> AsMutPtr for Handle<T> {
+impl<T> AsPtr for Handle<T> {
     type PtrType = ProtocolData<T>;
-    fn as_mut_ptr(&mut self) -> *mut ProtocolData<T> {
+    fn as_ptr(&self) -> *const ProtocolData<T> {
+        self.0
+    }
+}
+
+impl<T> AsPtr for &Handle<T> {
+    type PtrType = ProtocolData<T>;
+    fn as_ptr(&self) -> *const ProtocolData<T> {
         self.0
     }
 }

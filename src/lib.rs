@@ -16,7 +16,7 @@ lazy_static! {
     static ref STATUS_ONLINE_NAME: CString = CString::new("Online").unwrap();
     static ref STATUS_OFFLINE_ID: CString = CString::new("offline").unwrap();
     static ref STATUS_OFFLINE_NAME: CString = CString::new("Offline").unwrap();
-    static ref CHAT_INFO_SN: CString = CString::new("sn").unwrap();
+    static ref CHAT_INFO_SN: CString = CString::new("stamp").unwrap();
     static ref CHAT_INFO_SN_NAME: CString = CString::new("Chat ID").unwrap();
 }
 
@@ -164,11 +164,33 @@ impl purple::ChatInfoDefaultsHandler for PurpleICQ {
 }
 
 impl purple::JoinChatHandler for PurpleICQ {
-    fn join_chat(&mut self, _connection: &mut Connection, data: Option<StrHashTable>) {
-        if let Some(data) = data {
-            let sn = data.lookup(CHAT_INFO_SN.as_c_str());
-            log::info!("Joining chat: {:?}", sn);
+    fn join_chat(&mut self, connection: &mut Connection, data: Option<&mut StrHashTable>) {
+        let stamp = match Self::get_chat_name(data) {
+            Some(stamp) => stamp,
+            None => return,
+        };
+        let existing_conversation = connection.get_account().find_chat_conversation(&stamp);
+        if let Some(mut conversation) = existing_conversation {
+            if !conversation.has_left() {
+                conversation.present();
+                return;
+            }
         }
+
+        let handle = Handle::from(connection);
+        let protocol_data = self
+            .connections
+            .get(&handle)
+            .expect("Tried joining chat on closed connection");
+
+        self.system
+            .tx
+            .try_send(PurpleMessage::join_chat(
+                handle,
+                protocol_data.data.clone(),
+                stamp,
+            ))
+            .unwrap()
     }
 }
 

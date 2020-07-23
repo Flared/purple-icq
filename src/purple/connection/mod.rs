@@ -1,4 +1,4 @@
-use super::Plugin;
+use super::{ChatConversation, Plugin};
 use crate::purple;
 use std::ffi::CString;
 use std::os::raw::c_void;
@@ -58,6 +58,19 @@ impl Connection {
                 reason,
                 c_description.as_ptr(),
             );
+        }
+    }
+
+    pub fn serv_got_joined_chat(&mut self, stamp: &str) -> Option<ChatConversation> {
+        unsafe {
+            let c_stamp = CString::new(stamp).unwrap();
+            let stamp_hash = glib_sys::g_str_hash(c_stamp.as_ptr() as *mut c_void);
+            let conv = purple_sys::serv_got_joined_chat(
+                self.0.as_ptr(),
+                stamp_hash as i32,
+                c_stamp.as_ptr(),
+            );
+            ChatConversation::from_ptr(conv as *mut purple_sys::PurpleConvChat)
         }
     }
 }

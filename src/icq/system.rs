@@ -1,6 +1,8 @@
 use super::poller;
 use super::protocol;
-use crate::messages::{AccountInfo, FdSender, ICQSystemHandle, PurpleMessage, SystemMessage};
+use crate::messages::{
+    AccountInfo, FdSender, ICQSystemHandle, JoinChatMessage, PurpleMessage, SystemMessage,
+};
 use crate::purple;
 use crate::Handle;
 use async_std::sync::{channel, Receiver};
@@ -52,6 +54,7 @@ impl ICQSystem {
             log::info!("Message: {:?}", purple_message);
             let result = match purple_message {
                 PurpleMessage::Login(account_info) => self.login(account_info).await,
+                PurpleMessage::JoinChat(m) => self.join_chat(m).await,
             };
             if let Err(error) = result {
                 log::error!("Error handling message: {}", error);
@@ -170,5 +173,35 @@ impl ICQSystem {
             .await;
         log::info!("Code: {:?}", code);
         code
+    }
+
+    async fn join_chat(&mut self, message: JoinChatMessage) -> Result<(), String> {
+        log::info!("Joining stamp: {}", message.message_data.stamp);
+        let session = { message.protocol_data.lock().await.session.clone().unwrap() };
+        let stamp = message.message_data.stamp;
+        // Handle shareable URLs: https://icq.im/XXXXXXXXXXXXXX
+        let stamp = if stamp.contains("icq.im/") {
+            stamp.rsplit('/').next().unwrap().into()
+        } else {
+            stamp
+        };
+
+        protocol::join_chat(&session, &stamp)
+            .await
+            .map_err(|e| format!("Failed to join chat: {:?}", e))?;
+        let chat_info = protocol::get_chat_info(&session, &stamp)
+            .await
+            .map_err(|e| format!("Failed to get chat info: {:?}", e))?;
+
+        self.tx
+            .connection_proxy(&message.handle)
+            .exec(move |connection| {
+                let mut conversation = connection.serv_got_joined_chat(&stamp).unwrap();
+                conversation.set_data("sn", &chat_info.sn);
+                conversation.set_data("stamp", &stamp);
+                conversation.set_title(&chat_info.name);
+            })
+            .await;
+        Ok(())
     }
 }

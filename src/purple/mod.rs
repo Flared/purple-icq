@@ -1,15 +1,19 @@
 pub use self::account::Account;
 pub use self::connection::{Connection, Connections, Handle};
+pub use self::conversation::ChatConversation;
 pub use self::handlers::traits::*;
 pub use self::hashtable::StrHashTable;
 pub use self::loader::{PrplInfo, PrplPluginLoader, RegisterContext};
 pub use self::plugin::Plugin;
 pub use self::status_type::{PurpleStatusPrimitive, StatusType};
-pub use purple_sys::{PurpleConnectionError, PurpleConnectionState, PurpleInputCondition};
+pub use purple_sys::{
+    PurpleConnectionError, PurpleConnectionState, PurpleConversationType, PurpleInputCondition,
+};
 use std::os::raw::c_void;
 
 pub mod account;
 mod connection;
+mod conversation;
 pub mod ffi;
 mod handlers;
 mod hashtable;

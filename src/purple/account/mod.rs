@@ -1,5 +1,5 @@
 use super::ffi::{AsMutPtr, AsPtr};
-use super::Connection;
+use super::{ChatConversation, Connection, PurpleConversationType};
 use std::borrow::Cow;
 use std::ffi::CStr;
 use std::ffi::CString;
@@ -90,6 +90,17 @@ impl Account {
 
     pub fn set_settings<T: serde::Serialize>(&self, settings: &T) -> settings::Result<()> {
         settings::to_account(&self, settings)
+    }
+
+    pub fn find_chat_conversation(&mut self, name: &str) -> Option<ChatConversation> {
+        let c_name = CString::new(name).unwrap();
+        unsafe {
+            ChatConversation::from_ptr(purple_sys::purple_find_conversation_with_account(
+                PurpleConversationType::PURPLE_CONV_TYPE_CHAT,
+                c_name.as_ptr(),
+                self.0,
+            ) as *mut purple_sys::PurpleConvChat)
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
