@@ -201,6 +201,7 @@ impl ICQSystem {
                     sn: chat_info.sn,
                     stamp: stamp.clone(),
                     title: chat_info.name,
+                    group: None,
                 };
                 plugin.chat_joined(connection, &chat_info);
                 plugin.conversation_joined(connection, &chat_info);

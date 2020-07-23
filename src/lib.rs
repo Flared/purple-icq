@@ -23,6 +23,7 @@ lazy_static! {
 #[derive(Debug, Clone)]
 pub struct ChatInfo {
     pub stamp: String,
+    pub group: Option<String>,
     pub sn: String,
     pub title: String,
 }
@@ -297,12 +298,13 @@ impl PurpleICQ {
 
         let components = self.chat_info_defaults(connection, Some(&info.stamp));
         let mut chat = purple::Chat::new(&mut account, &info.title, components);
-        chat.add_to_blist(&mut self.icq_group(), None);
+        chat.add_to_blist(&mut self.icq_group(info.group.as_deref()), None);
     }
 
-    fn icq_group(&mut self) -> purple::Group {
-        Group::find("ICQ").unwrap_or_else(|| {
-            let mut group = purple::Group::new("ICQ");
+    fn icq_group(&mut self, name: Option<&str>) -> purple::Group {
+        let name = name.unwrap_or("ICQ");
+        Group::find(name).unwrap_or_else(|| {
+            let mut group = purple::Group::new(name);
             group.add_to_blist(None);
             group
         })
