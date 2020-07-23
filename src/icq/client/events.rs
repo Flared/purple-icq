@@ -183,31 +183,63 @@ pub struct GalleryNotifyData {}
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HistDlgStateData {
-    sn: String,
-    starting: Option<bool>,
-    last_msg_id: String,
-    last_read_mention: Option<String>,
-    patch_version: String,
-    unread_cnt: u32,
+    pub sn: String,
+    pub starting: Option<bool>,
+    pub last_msg_id: String,
+    pub last_read_mention: Option<String>,
+    pub patch_version: String,
+    pub unread_cnt: u32,
+    pub messages: Vec<HistDlgStateMessage>,
+    pub persons: Vec<HistDlgStatePerson>, // Information about the users involved in the messages.
 }
 
-// TODO: unused for now
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct HistDlgStatePerson {
+    // Example (for a chat):
+    // {
+    //   'sn': '111111111@chat.agent',
+    //   'friendly': 'this is the room name'
+    // }
+    // Example (for a user):
+    // {
+    //    'sn': '111111111',
+    //    'friendly': 'AVIAU'
+    // }
+    pub sn: String,
+    pub friendly: String,
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HistDlgStateMessage {
-    msg_id: String,
-    time: u32,
-    locale: String,
-    text: String,
-    //TODO: parts
-    media_type: String,
-    chat: HistDlgStateMessageChat,
+    // Exemple:
+    // {
+    //    'msgId': '6852767962512184049',
+    //    'time': 1595534375,
+    //    'locale': 'en_US',
+    //     'text': 'this is the text',
+    //     'mediaType': 'text'
+    // }
+    //
+    pub msg_id: String,
+    pub time: u32,
+    pub locale: String,
+    pub text: String,
+    pub media_type: String,
+    pub chat: HistDlgStateMessageChat,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HistDlgStateMessageChat {
-    sender: String,
-    name: String,
-    live: bool,
+    // Example:
+    // {
+    //      'sender': '111111111',
+    //      'name': 'name of the chat',
+    //      'live': True
+    // }
+    pub sender: String, // The sender's sn
+    pub name: String,   // The chat name
+    pub live: bool,
 }

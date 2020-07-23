@@ -199,7 +199,7 @@ impl ICQSystem {
                 let connection = &mut protocol_data.connection;
                 let chat_info = ChatInfo {
                     sn: chat_info.sn,
-                    stamp: stamp.clone(),
+                    stamp: Some(stamp.clone()),
                     title: chat_info.name,
                     group: None,
                 };

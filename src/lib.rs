@@ -22,7 +22,7 @@ lazy_static! {
 
 #[derive(Debug, Clone)]
 pub struct ChatInfo {
-    pub stamp: String,
+    pub stamp: Option<String>,
     pub group: Option<String>,
     pub sn: String,
     pub title: String,
@@ -313,7 +313,9 @@ impl PurpleICQ {
     pub fn conversation_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {
         let mut conversation = connection.serv_got_joined_chat(&info.sn).unwrap();
         conversation.set_data("sn", &info.sn);
-        conversation.set_data("stamp", &info.stamp);
+        if let Some(stamp) = &info.stamp {
+            conversation.set_data("stamp", stamp);
+        }
         conversation.set_title(&info.title);
     }
 }
