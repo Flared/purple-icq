@@ -1,11 +1,13 @@
 use self::account_proxy::AccountProxy;
 use self::connection_proxy::ConnectionProxy;
+use self::handle_proxy::HandleProxy;
 use crate::purple::{Account, Connection};
-use crate::{AccountDataBox, Handle};
+use crate::{AccountDataBox, Handle, ProtocolData, PurpleICQ};
 use async_std::sync::{Receiver, Sender};
 
 mod account_proxy;
 mod connection_proxy;
+mod handle_proxy;
 
 pub struct FdSender<T> {
     os_sender: os_pipe::PipeWriter,
@@ -37,6 +39,13 @@ impl FdSender<SystemMessage> {
 
     pub fn account_proxy<'a>(&'a mut self, handle: &Handle) -> AccountProxy<'a> {
         AccountProxy {
+            handle: handle.clone(),
+            sender: self,
+        }
+    }
+
+    pub fn handle_proxy<'a>(&'a mut self, handle: &Handle) -> HandleProxy<'a> {
+        HandleProxy {
             handle: handle.clone(),
             sender: self,
         }
@@ -96,6 +105,10 @@ pub enum SystemMessage {
     ExecConnection {
         handle: Handle,
         function: Box<dyn FnOnce(&mut Connection) + Send + 'static>,
+    },
+    ExecHandle {
+        handle: Handle,
+        function: Box<dyn FnOnce(&mut PurpleICQ, &mut ProtocolData) + Send + 'static>,
     },
 }
 

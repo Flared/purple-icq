@@ -1,6 +1,9 @@
 pub use self::account::Account;
+pub use self::chat::Chat;
+pub use self::connection::protocol_data::ProtocolData;
 pub use self::connection::{Connection, Connections, Handle};
 pub use self::conversation::ChatConversation;
+pub use self::group::Group;
 pub use self::handlers::traits::*;
 pub use self::hashtable::StrHashTable;
 pub use self::loader::{PrplInfo, PrplPluginLoader, RegisterContext};
@@ -12,9 +15,11 @@ pub use purple_sys::{
 use std::os::raw::c_void;
 
 pub mod account;
+mod chat;
 mod connection;
 mod conversation;
 pub mod ffi;
+mod group;
 mod handlers;
 mod hashtable;
 mod loader;

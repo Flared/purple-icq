@@ -11,8 +11,8 @@ pub struct HashTable<K, V>(
     std::marker::PhantomData<(K, V)>,
 );
 
-impl HashTable<&'static CStr, &str> {
-    pub fn new() -> Self {
+impl Default for HashTable<&'static CStr, &str> {
+    fn default() -> Self {
         Self(
             NonNull::new(unsafe {
                 glib_sys::g_hash_table_new_full(
@@ -26,7 +26,9 @@ impl HashTable<&'static CStr, &str> {
             std::marker::PhantomData,
         )
     }
+}
 
+impl HashTable<&'static CStr, &str> {
     pub unsafe fn from_ptr(ptr: *mut glib_sys::GHashTable) -> Option<Self> {
         NonNull::new(ptr).map(|p| Self(p, std::marker::PhantomData))
     }

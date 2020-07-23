@@ -3,8 +3,8 @@ use super::protocol;
 use crate::messages::{
     AccountInfo, FdSender, ICQSystemHandle, JoinChatMessage, PurpleMessage, SystemMessage,
 };
-use crate::purple;
 use crate::Handle;
+use crate::{purple, ChatInfo};
 use async_std::sync::{channel, Receiver};
 
 const CHANNEL_CAPACITY: usize = 1024;
@@ -194,14 +194,20 @@ impl ICQSystem {
             .map_err(|e| format!("Failed to get chat info: {:?}", e))?;
 
         self.tx
-            .connection_proxy(&message.handle)
-            .exec(move |connection| {
-                let mut conversation = connection.serv_got_joined_chat(&stamp).unwrap();
-                conversation.set_data("sn", &chat_info.sn);
-                conversation.set_data("stamp", &stamp);
-                conversation.set_title(&chat_info.name);
+            .handle_proxy(&message.handle)
+            .exec(move |plugin, protocol_data| {
+                let connection = &mut protocol_data.connection;
+                let chat_info = ChatInfo {
+                    sn: chat_info.sn,
+                    stamp: stamp.clone(),
+                    title: chat_info.name,
+                    group: None,
+                };
+                plugin.chat_joined(connection, &chat_info);
+                plugin.conversation_joined(connection, &chat_info);
             })
             .await;
+
         Ok(())
     }
 }

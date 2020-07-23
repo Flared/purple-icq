@@ -37,6 +37,14 @@ pub trait JoinChatHandler {
     fn join_chat(&mut self, connection: &mut Connection, data: Option<&mut StrHashTable>);
 }
 
+pub trait ChatLeaveHandler {
+    fn chat_leave(&mut self, connection: &mut Connection, id: i32);
+}
+
+pub trait ConvoClosedHandler {
+    fn convo_closed(&mut self, connection: &mut Connection, who: Option<&str>);
+}
+
 pub trait GetChatNameHandler {
     fn get_chat_name(data: Option<&mut StrHashTable>) -> Option<String>;
 }

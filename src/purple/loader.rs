@@ -129,5 +129,7 @@ impl_extra_handler_builder! {
     status_types => StatusTypeHandler
     list_icon => ListIconHandler
     join_chat => JoinChatHandler
+    chat_leave => ChatLeaveHandler
+    convo_closed => ConvoClosedHandler
     get_chat_name => GetChatNameHandler
 }

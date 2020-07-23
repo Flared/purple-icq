@@ -123,7 +123,7 @@ pub extern "C" fn join_chat<P: traits::JoinChatHandler>(
     components: *mut glib_sys::GHashTable,
 ) {
     if let Err(error) = catch_unwind(|| {
-        debug!("close");
+        debug!("join_chat");
         let mut connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
         let mut plugin = connection
             .get_protocol_plugin()
@@ -132,7 +132,43 @@ pub extern "C" fn join_chat<P: traits::JoinChatHandler>(
         let mut data = unsafe { StrHashTable::from_ptr(components) };
         prpl_plugin.join_chat(&mut connection, data.as_mut())
     }) {
-        error!("Failure in close: {:?}", error)
+        error!("Failure in join_chat: {:?}", error)
+    }
+}
+
+pub extern "C" fn chat_leave<P: traits::ChatLeaveHandler>(
+    connection_ptr: *mut purple_sys::PurpleConnection,
+    id: i32,
+) {
+    if let Err(error) = catch_unwind(|| {
+        debug!("chat_leave");
+        let mut connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
+        let mut plugin = connection
+            .get_protocol_plugin()
+            .expect("No plugin found for connection");
+        let prpl_plugin = unsafe { plugin.extra::<P>() };
+        prpl_plugin.chat_leave(&mut connection, id)
+    }) {
+        error!("Failure in chat_leave: {:?}", error)
+    }
+}
+
+pub extern "C" fn convo_closed<P: traits::ConvoClosedHandler>(
+    connection_ptr: *mut purple_sys::PurpleConnection,
+    c_who: *const c_char,
+) {
+    if let Err(error) = catch_unwind(|| {
+        debug!("convo_closed");
+        let mut connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
+        let mut plugin = connection
+            .get_protocol_plugin()
+            .expect("No plugin found for connection");
+        let prpl_plugin = unsafe { plugin.extra::<P>() };
+        let who = NonNull::new(c_who as *mut _)
+            .map(|p| unsafe { CStr::from_ptr(p.as_ptr()).to_str().unwrap() });
+        prpl_plugin.convo_closed(&mut connection, who)
+    }) {
+        error!("Failure in convo_closed: {:?}", error)
     }
 }
 
