@@ -25,6 +25,7 @@ serde_urlencoded = "0.6"
 rand = "0.7"
 surf = "2.0.0-alpha"
 uuid = { version = "0.8", features = ["v5"] }
+url = "2.1.1"
 
 [dependencies.async-std]
 version = "1.6"
