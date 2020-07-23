@@ -8,8 +8,17 @@ use crate::messages::{AccountInfo, FdSender, SystemMessage};
 use std::time::Duration;
 
 pub async fn fetch_events_loop(mut tx: FdSender<SystemMessage>, account_info: AccountInfo) {
-    //TODO: Where to begin?
-    let mut seq_num = 0;
+    let mut fetch_base_url = {
+        account_info
+            .protocol_data
+            .lock()
+            .await
+            .session
+            .as_ref()
+            .unwrap()
+            .fetch_base_url
+            .clone()
+    };
 
     loop {
         // Skip if we are disconnected.
@@ -25,24 +34,15 @@ pub async fn fetch_events_loop(mut tx: FdSender<SystemMessage>, account_info: Ac
         // Fetch Events
         log::info!("Fetching events...");
 
-        let session = {
-            account_info
-                .protocol_data
-                .lock()
-                .await
-                .session
-                .clone()
-                .unwrap()
-        };
-
-        match protocol::fetch_events(&session, seq_num).await {
+        match protocol::fetch_events(&fetch_base_url).await {
             Err(error) => {
                 log::error!("Failed to fetch events: {:?}", error);
                 async_std::task::sleep(Duration::from_secs(5)).await;
             }
-            Ok(events) => {
-                log::info!("Fetched Events: {:?}", events);
-                seq_num = process_events(&tx, &account_info, events).await;
+            Ok(fetch_events_response_data) => {
+                log::info!("Fetched Events: {:?}", fetch_events_response_data.events);
+                process_events(&tx, &account_info, fetch_events_response_data.events).await;
+                fetch_base_url = fetch_events_response_data.fetch_base_url;
             }
         }
     }
@@ -52,16 +52,12 @@ pub async fn process_events(
     _tx: &FdSender<SystemMessage>,
     _account_info: &AccountInfo,
     events: Vec<TryResult<Event>>,
-) -> u32 {
-    let mut next_seq_num = 0;
-
+) {
     for event in events {
         log::info!("Processing event: {:?}", event);
 
         match event {
             try_result::TryResult(Ok(event)) => {
-                next_seq_num = std::cmp::max(next_seq_num, event.seq_num + 1);
-
                 match event.event_data {
                     EventData::BuddyList(event_data) => {
                         process_event_buddy_list(&event_data).await;
@@ -96,8 +92,6 @@ pub async fn process_events(
             }
         }
     }
-
-    next_seq_num
 }
 
 pub async fn process_event_buddy_list(event_data: &events::BuddyListData) {

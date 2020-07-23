@@ -8,7 +8,6 @@ const SEND_CODE_URL: &str = "https://u.icq.net/api/v14/rapi/auth/sendCode";
 const LOGIN_WITH_PHONE_NUMBER_URL: &str =
     "https://u.icq.net/api/v14/smsreg/loginWithPhoneNumber.php";
 const START_SESSION_URL: &str = "https://u.icq.net/api/v14/wim/aim/startSession?";
-const FETCH_EVENTS_URL: &str = "https://u.icq.net/api/v14/bos/bos-m001f/aim/fetchEvents?";
 const GET_CHAT_INFO_URL: &str = "https://u.icq.net/api/v14/rapi/getChatInfo";
 const JOIN_CHAT_URL: &str = "https://u.icq.net/api/v14/rapi/joinChat";
 
@@ -18,6 +17,7 @@ pub enum Error {
     UrlEncodedSerializationError(serde_urlencoded::ser::Error),
     DeserializationError(serde_json::error::Error),
     RequestError(surf::Error),
+    UrlParseError(url::ParseError),
 }
 type Result<T> = std::result::Result<T, Error>;
 
@@ -117,18 +117,6 @@ pub struct LoginWithPhoneNumberResponseToken {
     pub a: String,
 }
 
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct FetchEventsBody<'a> {
-    pub aimsid: &'a str,
-    pub rnd: &'a str,
-    pub seq_num: u32,
-    pub timeout: u32,
-    pub supported_suggest_types: &'a str,
-    pub bg: u32,
-    pub hidden: u32,
-}
-
 type FetchEventsResponse = WebIcqResponse<FetchEventsResponseData>;
 
 #[derive(Deserialize, Debug)]
@@ -170,6 +158,8 @@ type StartSessionResponse = WebIcqResponse<StartSessionResponseData>;
 pub struct StartSessionResponseData {
     pub aimsid: String,
     pub my_info: StartSessionResponseMyInfo,
+    #[serde(rename = "fetchBaseURL")]
+    pub fetch_base_url: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -241,10 +231,10 @@ pub async fn start_session(body: &StartSessionBody<'_>) -> Result<StartSessionRe
     post_form(&url, &StartSessionFormBody {}).await
 }
 
-pub async fn fetch_events(body: &FetchEventsBody<'_>) -> Result<FetchEventsResponse> {
-    let params = serde_urlencoded::to_string(body).map_err(Error::UrlEncodedSerializationError)?;
-    let url = FETCH_EVENTS_URL.to_string() + &params;
-    get_json(&url).await
+pub async fn fetch_events(fetch_base_url: &str) -> Result<FetchEventsResponse> {
+    let url = url::Url::parse_with_params(fetch_base_url, &[("timeout", "30000")])
+        .map_err(Error::UrlParseError)?;
+    get_json(&url.to_string()).await
 }
 
 pub async fn get_chat_info(body: &GetChatInfoBody<'_>) -> Result<GetChatInfoResponse> {

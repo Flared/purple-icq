@@ -1,6 +1,4 @@
 use super::client;
-use super::client::events::Event;
-use super::client::try_result::TryResult;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -29,6 +27,7 @@ pub struct SessionInfo {
     pub registration_data: RegistrationData,
     pub aim_id: String,
     pub aim_sid: String,
+    pub fetch_base_url: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -113,28 +112,15 @@ pub async fn start_session(registration_data: &RegistrationData) -> Result<Sessi
         registration_data: registration_data.clone(),
         aim_id: start_session_response.response.data.my_info.aim_id,
         aim_sid: start_session_response.response.data.aimsid,
+        fetch_base_url: start_session_response.response.data.fetch_base_url,
     })
 }
 
-pub async fn fetch_events(
-    session_info: &SessionInfo,
-    seq_num: u32,
-) -> Result<Vec<TryResult<Event>>> {
-    let fetch_events_body = client::FetchEventsBody {
-        aimsid: &session_info.aim_sid,
-        bg: 1,
-        hidden: 1,
-        rnd: "1.1",
-        timeout: 30000,
-        seq_num,
-        supported_suggest_types: "sticker-smartreply,text-smartreply",
-    };
-
-    let fetch_events_response = client::fetch_events(&fetch_events_body)
+pub async fn fetch_events(fetch_base_url: &str) -> Result<client::FetchEventsResponseData> {
+    let fetch_events_response = client::fetch_events(fetch_base_url)
         .await
         .map_err(Error::ApiError)?;
-
-    Ok(fetch_events_response.response.data.events)
+    Ok(fetch_events_response.response.data)
 }
 
 pub async fn get_chat_info(session: &SessionInfo, stamp: &str) -> Result<ChatInfo> {
