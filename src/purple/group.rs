@@ -1,4 +1,5 @@
 use super::ffi::{AsMutPtr, AsPtr};
+use std::ffi::CStr;
 use std::ffi::CString;
 use std::ptr::{null_mut, NonNull};
 
@@ -21,6 +22,13 @@ impl Group {
 
     pub fn add_to_blist(&mut self, _node: Option<()>) {
         unsafe { purple_sys::purple_blist_add_group(self.as_mut_ptr(), null_mut()) }
+    }
+
+    pub fn get_name(&mut self) -> String {
+        unsafe {
+            let name_ptr = purple_sys::purple_group_get_name(self.as_mut_ptr());
+            CStr::from_ptr(name_ptr).to_str().unwrap().to_string()
+        }
     }
 }
 

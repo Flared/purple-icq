@@ -61,8 +61,8 @@ pub struct BuddyListGroup {
     //      'id': 1,
     //      'buddies': [ ... ],
     // }
-    name: String,
-    id: u32,
+    pub name: String,
+    pub id: u32,
     pub buddies: Vec<Buddy>,
 }
 
@@ -101,14 +101,14 @@ pub struct Buddy {
     //      'userType': 'chat',
     //      'chatType': 'group'
     // }
-    nick: Option<String>,
-    aim_id: String,
-    display_id: String,
-    friendly: Option<String>,
-    state: String,
+    pub nick: Option<String>,
+    pub aim_id: String,
+    pub display_id: String,
+    pub friendly: Option<String>,
+    pub state: String,
     pub user_type: UserType,
-    official: Option<u32>,
-    chat_type: Option<String>,
+    pub official: Option<u32>,
+    pub chat_type: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]

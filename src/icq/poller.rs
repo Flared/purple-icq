@@ -62,7 +62,7 @@ pub async fn process_events(
             try_result::TryResult(Ok(event)) => {
                 match event.event_data {
                     EventData::BuddyList(event_data) => {
-                        process_event_buddy_list(&event_data).await;
+                        process_event_buddy_list(tx.clone(), account_info, &event_data).await;
                     }
                     EventData::HistDlgState(event_data) => {
                         process_event_hist_dlg_state(tx.clone(), account_info, &event_data).await;
@@ -99,12 +99,30 @@ pub async fn process_events(
     }
 }
 
-pub async fn process_event_buddy_list(event_data: &events::BuddyListData) {
+pub async fn process_event_buddy_list(
+    mut tx: FdSender<SystemMessage>,
+    account_info: &AccountInfo,
+    event_data: &events::BuddyListData,
+) {
     for group in &event_data.groups {
         for buddy in &group.buddies {
             match &buddy.user_type {
                 events::UserType::Chat => {
-                    // Do we already have a chat?
+                    let chat_info = ChatInfo {
+                        sn: buddy.aim_id.clone(),
+                        stamp: None,
+                        title: match &buddy.friendly {
+                            Some(friendly) => friendly.clone(),
+                            None => buddy.aim_id.clone(),
+                        },
+                        group: Some(group.name.clone()),
+                    };
+                    tx.handle_proxy(&account_info.handle)
+                        .exec(move |plugin, protocol_data| {
+                            let connection = &mut protocol_data.connection;
+                            plugin.chat_joined(connection, &chat_info);
+                        })
+                        .await;
                 }
                 events::UserType::ICQ => {}
                 events::UserType::Unknown => {
