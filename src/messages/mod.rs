@@ -79,13 +79,21 @@ pub struct JoinChatMessageData {
     pub stamp: String,
 }
 
-pub type JoinChatMessage = PurpleMessageWithHandle<JoinChatMessageData>;
+#[derive(Debug, Clone)]
+pub struct SendMsgMessageData {
+    pub to_sn: String,
+    pub message: String,
+}
 
 #[derive(Debug)]
 pub enum PurpleMessage {
     Login(AccountInfo),
     JoinChat(JoinChatMessage),
+    SendMsg(SendMsgMessage),
 }
+
+pub type JoinChatMessage = PurpleMessageWithHandle<JoinChatMessageData>;
+pub type SendMsgMessage = PurpleMessageWithHandle<SendMsgMessageData>;
 
 impl PurpleMessage {
     pub fn join_chat(handle: Handle, protocol_data: AccountDataBox, stamp: String) -> Self {
@@ -93,6 +101,19 @@ impl PurpleMessage {
             handle,
             protocol_data,
             message_data: JoinChatMessageData { stamp },
+        })
+    }
+
+    pub fn send_msg(
+        handle: Handle,
+        protocol_data: AccountDataBox,
+        to_sn: String,
+        message: String,
+    ) -> Self {
+        Self::SendMsg(SendMsgMessage {
+            handle,
+            protocol_data,
+            message_data: SendMsgMessageData { to_sn, message },
         })
     }
 }

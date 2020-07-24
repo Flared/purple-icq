@@ -1,4 +1,6 @@
-use super::super::{prpl, Account, Connection, Plugin, StatusType, StrHashTable};
+use super::super::{
+    prpl, Account, Connection, Plugin, PurpleMessageFlags, StatusType, StrHashTable,
+};
 use std::ffi::CStr;
 
 pub trait LoadHandler {
@@ -47,6 +49,26 @@ pub trait ConvoClosedHandler {
 
 pub trait GetChatNameHandler {
     fn get_chat_name(data: Option<&mut StrHashTable>) -> Option<String>;
+}
+
+pub trait SendIMHandler {
+    fn send_im(
+        &mut self,
+        connection: &mut Connection,
+        who: &str,
+        message: &str,
+        flags: PurpleMessageFlags,
+    ) -> i32;
+}
+
+pub trait ChatSendHandler {
+    fn chat_send(
+        &mut self,
+        connection: &mut Connection,
+        id: i32,
+        message: &str,
+        flags: PurpleMessageFlags,
+    ) -> i32;
 }
 
 pub trait InputHandler {

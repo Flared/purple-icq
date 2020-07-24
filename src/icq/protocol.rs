@@ -13,6 +13,7 @@ const EVENTS: &str = "myInfo,presence,buddylist,typing,hiddenChat,hist,mchat,sen
 const PRESENCE_FIELDS: &str = "aimId,displayId,friendly,friendlyName,state,userType,statusMsg,statusTime,lastseen,ssl,mute,abContactName,abPhoneNumber,abPhones,official,quiet,autoAddition,largeIconId,nick,userState";
 
 type ChatInfo = client::GetChatInfoResponseData;
+type MsgInfo = client::SendIMResponseData;
 
 #[derive(Debug)]
 pub enum Error {
@@ -148,6 +149,21 @@ pub async fn join_chat(session: &SessionInfo, stamp: &str) -> Result<()> {
         .await
         .map_err(Error::ApiError)?;
     Ok(())
+}
+
+pub async fn send_im(session: &SessionInfo, to_sn: &str, message: &str) -> Result<MsgInfo> {
+    let send_im_body = client::SendIMBody {
+        t: to_sn,
+        r: &request_id(),
+        mentions: "",
+        message,
+        f: "json",
+        aimsid: &session.aim_sid,
+    };
+    client::send_im(&send_im_body)
+        .await
+        .map_err(Error::ApiError)
+        .map(|r| r.response.data)
 }
 
 fn request_id() -> String {

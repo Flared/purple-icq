@@ -1,3 +1,4 @@
+use super::ffi::AsPtr;
 use super::{ChatConversation, Plugin};
 use crate::purple;
 use std::ffi::CString;
@@ -16,10 +17,6 @@ pub struct Connection(NonNull<purple_sys::PurpleConnection>);
 impl Connection {
     pub unsafe fn from_raw(ptr: *mut purple_sys::PurpleConnection) -> Option<Self> {
         NonNull::new(ptr).map(Self)
-    }
-
-    pub fn as_ptr(&mut self) -> NonNull<purple_sys::PurpleConnection> {
-        self.0
     }
 
     pub fn get_protocol_plugin(&self) -> Option<Plugin> {
@@ -61,16 +58,23 @@ impl Connection {
         }
     }
 
-    pub fn serv_got_joined_chat(&mut self, stamp: &str) -> Option<ChatConversation> {
+    pub fn serv_got_joined_chat(&mut self, name: &str) -> Option<ChatConversation> {
         unsafe {
-            let c_stamp = CString::new(stamp).unwrap();
-            let stamp_hash = glib_sys::g_str_hash(c_stamp.as_ptr() as *mut c_void);
+            let c_name = CString::new(name).unwrap();
+            let name_hash = glib_sys::g_str_hash(c_name.as_ptr() as *mut c_void);
             let conv = purple_sys::serv_got_joined_chat(
                 self.0.as_ptr(),
-                stamp_hash as i32,
-                c_stamp.as_ptr(),
+                name_hash as i32,
+                c_name.as_ptr(),
             );
             ChatConversation::from_ptr(conv as *mut purple_sys::PurpleConvChat)
         }
+    }
+}
+
+impl AsPtr for Connection {
+    type PtrType = purple_sys::PurpleConnection;
+    fn as_ptr(&self) -> *const purple_sys::PurpleConnection {
+        self.0.as_ptr()
     }
 }

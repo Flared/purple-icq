@@ -1,4 +1,4 @@
-use super::super::{prpl, Account, Connection, Plugin, StrHashTable};
+use super::super::{prpl, Account, Connection, Plugin, PurpleMessageFlags, StrHashTable};
 use super::traits;
 use crate::purple::ffi::{IntoGlibPtr, ToGlibContainerFromIterator};
 use glib::translate::{ToGlibContainerFromSlice, ToGlibPtr};
@@ -219,4 +219,52 @@ pub extern "C" fn roomlist_get_list_handler(
 ) -> *mut purple_sys::PurpleRoomlist {
     println!("roomlist_get_list_handler");
     std::ptr::null_mut()
+}
+
+pub extern "C" fn chat_send<P: traits::ChatSendHandler>(
+    connection_ptr: *mut purple_sys::PurpleConnection,
+    id: i32,
+    c_message: *const c_char,
+    flags: PurpleMessageFlags,
+) -> i32 {
+    match catch_unwind(|| {
+        debug!("convo_closed");
+        let mut connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
+        let mut plugin = connection
+            .get_protocol_plugin()
+            .expect("No plugin found for connection");
+        let prpl_plugin = unsafe { plugin.extra::<P>() };
+        let message = unsafe { CStr::from_ptr(c_message).to_str().unwrap() };
+        prpl_plugin.chat_send(&mut connection, id, message, flags)
+    }) {
+        Ok(r) => r,
+        Err(error) => {
+            error!("Failure in convo_closed: {:?}", error);
+            -1
+        }
+    }
+}
+pub extern "C" fn send_im<P: traits::SendIMHandler>(
+    connection_ptr: *mut purple_sys::PurpleConnection,
+    c_who: *const c_char,
+    c_message: *const c_char,
+    flags: PurpleMessageFlags,
+) -> i32 {
+    match catch_unwind(|| {
+        debug!("convo_closed");
+        let mut connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
+        let mut plugin = connection
+            .get_protocol_plugin()
+            .expect("No plugin found for connection");
+        let prpl_plugin = unsafe { plugin.extra::<P>() };
+        let who = unsafe { CStr::from_ptr(c_who).to_str().unwrap() };
+        let message = unsafe { CStr::from_ptr(c_message).to_str().unwrap() };
+        prpl_plugin.send_im(&mut connection, who, message, flags)
+    }) {
+        Ok(r) => r,
+        Err(error) => {
+            error!("Failure in convo_closed: {:?}", error);
+            -1
+        }
+    }
 }
