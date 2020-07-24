@@ -1,6 +1,8 @@
 use super::ffi::AsPtr;
 use super::{ChatConversation, Plugin};
 use crate::purple;
+use crate::purple::PurpleMessageFlags;
+use crate::MsgInfo;
 use std::ffi::CString;
 use std::os::raw::c_void;
 use std::ptr::NonNull;
@@ -55,6 +57,23 @@ impl Connection {
                 reason,
                 c_description.as_ptr(),
             );
+        }
+    }
+
+    pub fn serv_got_chat_in(&mut self, chat_input: MsgInfo) {
+        unsafe {
+            let sn_hash = glib_sys::g_str_hash(chat_input.chat_sn.as_ptr() as *mut c_void);
+            let c_sender = CString::new(chat_input.author_sn).unwrap();
+            let c_text = CString::new(chat_input.text).unwrap();
+
+            purple_sys::serv_got_chat_in(
+                self.0.as_ptr(),
+                sn_hash as i32,
+                c_sender.as_ptr(),
+                PurpleMessageFlags::PURPLE_MESSAGE_RECV,
+                c_text.as_ptr(),
+                chat_input.time as i64,
+            )
         }
     }
 

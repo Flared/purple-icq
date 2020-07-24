@@ -6,6 +6,7 @@ use super::client::try_result::TryResult;
 use super::protocol;
 use crate::messages::{AccountInfo, FdSender, SystemMessage};
 use crate::ChatInfo;
+use crate::MsgInfo;
 use std::time::Duration;
 
 pub async fn fetch_events_loop(mut tx: FdSender<SystemMessage>, account_info: AccountInfo) {
@@ -78,6 +79,9 @@ pub async fn process_events(
                     EventData::GalleryNotify(_event_data) => {
                         // TODO
                     }
+                    EventData::ImStates(_event_data) => {
+                        // TODO
+                    }
                 }
             }
 
@@ -139,23 +143,49 @@ pub async fn process_event_hist_dlg_state(
     let chat_sn = event_data.sn.clone();
     let chat_friendly = find_author_friendly(&chat_sn, &event_data.persons).to_string();
 
+    let chat_info = ChatInfo {
+        sn: chat_sn.clone(),
+        stamp: None,
+        title: chat_friendly,
+        group: None,
+    };
+
     tx.handle_proxy(&account_info.handle)
         .exec(move |plugin, protocol_data| {
             let connection = &mut protocol_data.connection;
-            let chat_info = ChatInfo {
-                sn: chat_sn,
-                stamp: None,
-                title: chat_friendly,
-                group: None,
-            };
             plugin.chat_joined(connection, &chat_info);
         })
         .await;
 
     // Create Chat Entries
     for message in &event_data.messages {
-        let author_sn = &message.chat.sender;
-        let _author_friendly = find_author_friendly(author_sn, &event_data.persons);
-        //chat.add_message(message)
+        // For group conversation:
+        // - event_data.sn is the Group's sn
+        // - message.chat.sender is the author's sn
+        //
+        // For DMs:
+        // - message.chat is not there
+        // - event_data.sn is the author's sn
+        let author_sn = {
+            match &message.chat {
+                Some(chat) => chat.sender.clone(),
+                None => event_data.sn.clone(),
+            }
+        };
+        let author_friendly = find_author_friendly(&author_sn, &event_data.persons).to_string();
+
+        let chat_input = MsgInfo {
+            chat_sn: chat_sn.clone(),
+            author_sn,
+            author_friendly,
+            text: message.text.clone(),
+            time: message.time,
+        };
+
+        tx.connection_proxy(&account_info.handle)
+            .exec(move |connection| {
+                connection.serv_got_chat_in(chat_input);
+            })
+            .await;
     }
 }
