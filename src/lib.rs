@@ -18,6 +18,10 @@ lazy_static! {
     static ref STATUS_OFFLINE_NAME: CString = CString::new("Offline").unwrap();
     static ref CHAT_INFO_SN: CString = CString::new("sn").unwrap();
     static ref CHAT_INFO_SN_NAME: CString = CString::new("Chat ID").unwrap();
+    static ref CHAT_INFO_STAMP: CString = CString::new("stamp").unwrap();
+    static ref CHAT_INFO_TITLE: CString = CString::new("title").unwrap();
+    static ref CHAT_INFO_GROUP: CString = CString::new("group").unwrap();
+    static ref CHAT_INFO_STATE: CString = CString::new("state").unwrap();
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +30,30 @@ pub struct ChatInfo {
     pub group: Option<String>,
     pub sn: String,
     pub title: String,
+}
+
+impl ChatInfo {
+    pub fn from_hashtable(table: &StrHashTable) -> Option<Self> {
+        Some(Self {
+            stamp: table.lookup(&CHAT_INFO_STAMP).map(Into::into),
+            group: table.lookup(&CHAT_INFO_GROUP).map(Into::into),
+            sn: table.lookup(&CHAT_INFO_SN)?.into(),
+            title: table.lookup(&CHAT_INFO_TITLE)?.into(),
+        })
+    }
+
+    pub fn as_hashtable(&self) -> purple::StrHashTable {
+        let mut table = purple::StrHashTable::default();
+        table.insert(&CHAT_INFO_SN, &self.sn);
+        if let Some(group) = &self.group {
+            table.insert(&CHAT_INFO_GROUP, &group);
+        }
+        if let Some(stamp) = &self.stamp {
+            table.insert(&CHAT_INFO_STAMP, &stamp);
+        }
+        table.insert(&CHAT_INFO_TITLE, &self.title);
+        table
+    }
 }
 
 #[derive(Debug, Default)]
@@ -76,6 +104,8 @@ impl purple::PrplPlugin for PurpleICQ {
             .enable_chat_info_defaults()
             .enable_join_chat()
             .enable_chat_leave()
+            .enable_send_im()
+            .enable_chat_send()
             .enable_convo_closed()
             .enable_get_chat_name()
             .enable_list_icon()
@@ -175,17 +205,34 @@ impl purple::ChatInfoDefaultsHandler for PurpleICQ {
 
 impl purple::JoinChatHandler for PurpleICQ {
     fn join_chat(&mut self, connection: &mut Connection, data: Option<&mut StrHashTable>) {
-        let stamp = match Self::get_chat_name(data) {
-            Some(stamp) => stamp,
-            None => return,
-        };
-        let existing_conversation = connection.get_account().find_chat_conversation(&stamp);
-        if let Some(mut conversation) = existing_conversation {
-            if !conversation.has_left() {
-                conversation.present();
+        let data = match data {
+            Some(data) => data,
+            None => {
                 return;
             }
+        };
+
+        let stamp = match Self::get_chat_name(Some(data)) {
+            Some(stamp) => stamp,
+            None => {
+                log::error!("No chat name provided");
+                return;
+            }
+        };
+
+        if let Some("joined") = data.lookup(&CHAT_INFO_STATE) {
+            match ChatInfo::from_hashtable(data) {
+                Some(chat_info) => {
+                    self.conversation_joined(connection, &chat_info);
+                    return;
+                }
+                None => {
+                    log::error!("Unable to load chat info");
+                }
+            }
         }
+
+        log::info!("Joining {}", stamp);
 
         let handle = Handle::from(connection);
         let protocol_data = self
@@ -219,6 +266,32 @@ impl purple::ConvoClosedHandler for PurpleICQ {
 impl purple::GetChatNameHandler for PurpleICQ {
     fn get_chat_name(data: Option<&mut purple::StrHashTable>) -> Option<String> {
         data.and_then(|h| h.lookup(CHAT_INFO_SN.as_c_str()).map(Into::into))
+    }
+}
+
+impl purple::SendIMHandler for PurpleICQ {
+    fn send_im(
+        &mut self,
+        _connection: &mut Connection,
+        who: &str,
+        message: &str,
+        flags: purple::PurpleMessageFlags,
+    ) -> i32 {
+        log::info!("{}: {} [{:?}]", who, message, flags);
+        1
+    }
+}
+
+impl purple::ChatSendHandler for PurpleICQ {
+    fn chat_send(
+        &mut self,
+        _connection: &mut Connection,
+        id: i32,
+        message: &str,
+        flags: PurpleMessageFlags,
+    ) -> i32 {
+        log::info!("{}: {} [{:?}]", id, message, flags);
+        1
     }
 }
 
@@ -280,6 +353,7 @@ impl PurpleICQ {
     }
 
     pub fn chat_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {
+        log::info!("chat joined: {}", info.sn);
         if info.sn.ends_with("@chat.agent") {
             self.group_chat_joined(connection, info)
         } else {
@@ -296,7 +370,8 @@ impl PurpleICQ {
             return;
         }
 
-        let components = self.chat_info_defaults(connection, Some(&info.sn));
+        let mut components = info.as_hashtable();
+        components.insert(&CHAT_INFO_STATE, "joined");
         let mut chat = purple::Chat::new(&mut account, &info.title, components);
         chat.add_to_blist(&mut self.icq_group(info.group.as_deref()), None);
     }
@@ -311,12 +386,23 @@ impl PurpleICQ {
     }
 
     pub fn conversation_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {
-        let mut conversation = connection.serv_got_joined_chat(&info.sn).unwrap();
-        conversation.set_data("sn", &info.sn);
-        if let Some(stamp) = &info.stamp {
-            conversation.set_data("stamp", stamp);
+        match connection.get_account().find_chat_conversation(&info.sn) {
+            Some(mut conversation) => {
+                if conversation.has_left() {
+                    log::error!("Trying to join left conversation");
+                } else {
+                    conversation.present();
+                }
+            }
+            None => {
+                let mut conversation = connection.serv_got_joined_chat(&info.sn).unwrap();
+                conversation.set_data("sn", &info.sn);
+                if let Some(stamp) = &info.stamp {
+                    conversation.set_data("stamp", stamp);
+                }
+                conversation.set_title(&info.title);
+            }
         }
-        conversation.set_title(&info.title);
     }
 }
 

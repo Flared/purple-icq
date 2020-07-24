@@ -1,5 +1,5 @@
 use super::ffi::{mut_override, AsPtr};
-use glib::translate::{FromGlib, ToGlibPtr};
+use glib::translate::{FromGlib, FromGlibPtrContainer, ToGlibPtr};
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 use std::ptr::NonNull;
@@ -51,6 +51,15 @@ impl HashTable<&'static CStr, &str> {
             ) as *mut c_char)
             .map(|p| CStr::from_ptr(p.as_ptr()).to_str().unwrap())
         }
+    }
+}
+
+impl<K, V> std::fmt::Debug for HashTable<K, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::collections::HashMap;
+        let hashmap: HashMap<String, String> =
+            unsafe { FromGlibPtrContainer::from_glib_none(self.0.as_ptr()) };
+        write!(f, "HashTable({:?})", hashmap)
     }
 }
 

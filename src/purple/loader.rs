@@ -132,4 +132,6 @@ impl_extra_handler_builder! {
     chat_leave => ChatLeaveHandler
     convo_closed => ConvoClosedHandler
     get_chat_name => GetChatNameHandler
+    send_im => SendIMHandler
+    chat_send => ChatSendHandler
 }

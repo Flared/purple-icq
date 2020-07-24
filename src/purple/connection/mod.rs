@@ -61,14 +61,14 @@ impl Connection {
         }
     }
 
-    pub fn serv_got_joined_chat(&mut self, stamp: &str) -> Option<ChatConversation> {
+    pub fn serv_got_joined_chat(&mut self, name: &str) -> Option<ChatConversation> {
         unsafe {
-            let c_stamp = CString::new(stamp).unwrap();
-            let stamp_hash = glib_sys::g_str_hash(c_stamp.as_ptr() as *mut c_void);
+            let c_name = CString::new(name).unwrap();
+            let name_hash = glib_sys::g_str_hash(c_name.as_ptr() as *mut c_void);
             let conv = purple_sys::serv_got_joined_chat(
                 self.0.as_ptr(),
-                stamp_hash as i32,
-                c_stamp.as_ptr(),
+                name_hash as i32,
+                c_name.as_ptr(),
             );
             ChatConversation::from_ptr(conv as *mut purple_sys::PurpleConvChat)
         }

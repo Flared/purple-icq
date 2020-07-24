@@ -11,6 +11,7 @@ pub use self::plugin::Plugin;
 pub use self::status_type::{PurpleStatusPrimitive, StatusType};
 pub use purple_sys::{
     PurpleConnectionError, PurpleConnectionState, PurpleConversationType, PurpleInputCondition,
+    PurpleMessageFlags,
 };
 use std::os::raw::c_void;
 
