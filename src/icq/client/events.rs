@@ -25,7 +25,14 @@ pub enum EventData {
     Presence(PresenceData),
 
     GalleryNotify(GalleryNotifyData),
+
+    ImStates(ImStatesData),
 }
+
+// Event: ImStates
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ImStatesData {}
 
 // Event: BuddyList
 
@@ -185,10 +192,10 @@ pub struct GalleryNotifyData {}
 pub struct HistDlgStateData {
     pub sn: String,
     pub starting: Option<bool>,
-    pub last_msg_id: String,
-    pub last_read_mention: Option<String>,
-    pub patch_version: String,
-    pub unread_cnt: u32,
+    //pub last_msg_id: String,
+    //pub last_read_mention: Option<String>,
+    //pub patch_version: String,
+    //pub unread_cnt: u32,
     pub messages: Vec<HistDlgStateMessage>,
     pub persons: Vec<HistDlgStatePerson>, // Information about the users involved in the messages.
 }
@@ -222,12 +229,12 @@ pub struct HistDlgStateMessage {
     //     'mediaType': 'text'
     // }
     //
-    pub msg_id: String,
-    pub time: u32,
-    pub locale: String,
+    //pub msg_id: String,
+    pub time: i64,
+    //pub locale: String,
     pub text: String,
-    pub media_type: String,
-    pub chat: HistDlgStateMessageChat,
+    //pub media_type: String,
+    pub chat: Option<HistDlgStateMessageChat>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -239,7 +246,7 @@ pub struct HistDlgStateMessageChat {
     //      'name': 'name of the chat',
     //      'live': True
     // }
+    // pub live: Option<bool>
     pub sender: String, // The sender's sn
     pub name: String,   // The chat name
-    pub live: bool,
 }

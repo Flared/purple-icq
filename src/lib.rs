@@ -43,6 +43,15 @@ pub mod chat_states {
 }
 
 #[derive(Debug, Clone)]
+pub struct MsgInfo {
+    pub chat_sn: String,
+    pub author_sn: String,
+    pub author_friendly: String,
+    pub text: String,
+    pub time: i64,
+}
+
+#[derive(Debug, Clone)]
 pub struct ChatInfo {
     pub stamp: Option<String>,
     pub group: Option<String>,
@@ -402,7 +411,7 @@ impl PurpleICQ {
         if info.sn.ends_with("@chat.agent") {
             self.group_chat_joined(connection, info)
         } else {
-            todo!()
+            //todo!()
         }
     }
 
