@@ -285,12 +285,39 @@ impl purple::SendIMHandler for PurpleICQ {
 impl purple::ChatSendHandler for PurpleICQ {
     fn chat_send(
         &mut self,
-        _connection: &mut Connection,
+        connection: &mut Connection,
         id: i32,
         message: &str,
         flags: PurpleMessageFlags,
     ) -> i32 {
         log::info!("{}: {} [{:?}]", id, message, flags);
+        let mut conversation = match ChatConversation::find(connection, id) {
+            Some(c) => c,
+            None => {
+                log::error!("Conversation not found");
+                return -1;
+            }
+        };
+
+        let sn = match conversation.get_data("sn") {
+            Some(sn) => sn,
+            None => {
+                log::error!("SN not found");
+                return -1;
+            }
+        };
+
+        let handle = Handle::from(connection);
+        let protocol_data = self.connections.get(&handle).expect("Connection closed");
+        self.system
+            .tx
+            .try_send(PurpleMessage::send_msg(
+                handle,
+                protocol_data.data.clone(),
+                sn.into(),
+                message.into(),
+            ))
+            .unwrap();
         1
     }
 }

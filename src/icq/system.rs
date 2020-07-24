@@ -1,7 +1,8 @@
 use super::poller;
 use super::protocol;
 use crate::messages::{
-    AccountInfo, FdSender, ICQSystemHandle, JoinChatMessage, PurpleMessage, SystemMessage,
+    AccountInfo, FdSender, ICQSystemHandle, JoinChatMessage, PurpleMessage, SendMsgMessage,
+    SystemMessage,
 };
 use crate::Handle;
 use crate::{purple, ChatInfo};
@@ -55,6 +56,7 @@ impl ICQSystem {
             let result = match purple_message {
                 PurpleMessage::Login(account_info) => self.login(account_info).await,
                 PurpleMessage::JoinChat(m) => self.join_chat(m).await,
+                PurpleMessage::SendMsg(m) => self.send_msg(m).await,
             };
             if let Err(error) = result {
                 log::error!("Error handling message: {}", error);
@@ -208,6 +210,17 @@ impl ICQSystem {
             })
             .await;
 
+        Ok(())
+    }
+
+    async fn send_msg(&mut self, message: SendMsgMessage) -> Result<(), String> {
+        log::info!("send_msg({:?})", message);
+        let to_sn = &message.message_data.to_sn;
+        let message_body = &message.message_data.message;
+        let session = { message.protocol_data.lock().await.session.clone().unwrap() };
+        let _msg_info = protocol::send_im(&session, to_sn, message_body)
+            .await
+            .map_err(|e| format!("Failed to send msg: {:?}", e))?;
         Ok(())
     }
 }

@@ -129,7 +129,7 @@ impl Account {
         let ok_text = CString::new(ok_text).unwrap().into_raw();
         let cancel_text = CString::new(cancel_text).unwrap().into_raw();
 
-        let mut connection = self.get_connection().map(|mut c| c.as_ptr());
+        let mut connection = self.get_connection().map(|c| c.as_ptr());
 
         let callback_closure = move |value: Option<Cow<str>>| {
             // Regain ownership over strings to free them.

@@ -1,3 +1,4 @@
+use super::ffi::AsPtr;
 use super::{ChatConversation, Plugin};
 use crate::purple;
 use std::ffi::CString;
@@ -16,10 +17,6 @@ pub struct Connection(NonNull<purple_sys::PurpleConnection>);
 impl Connection {
     pub unsafe fn from_raw(ptr: *mut purple_sys::PurpleConnection) -> Option<Self> {
         NonNull::new(ptr).map(Self)
-    }
-
-    pub fn as_ptr(&mut self) -> NonNull<purple_sys::PurpleConnection> {
-        self.0
     }
 
     pub fn get_protocol_plugin(&self) -> Option<Plugin> {
@@ -72,5 +69,12 @@ impl Connection {
             );
             ChatConversation::from_ptr(conv as *mut purple_sys::PurpleConvChat)
         }
+    }
+}
+
+impl AsPtr for Connection {
+    type PtrType = purple_sys::PurpleConnection;
+    fn as_ptr(&self) -> *const purple_sys::PurpleConnection {
+        self.0.as_ptr()
     }
 }

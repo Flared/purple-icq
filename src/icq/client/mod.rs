@@ -8,6 +8,7 @@ const SEND_CODE_URL: &str = "https://u.icq.net/api/v14/rapi/auth/sendCode";
 const LOGIN_WITH_PHONE_NUMBER_URL: &str =
     "https://u.icq.net/api/v14/smsreg/loginWithPhoneNumber.php";
 const START_SESSION_URL: &str = "https://u.icq.net/api/v14/wim/aim/startSession?";
+const SEND_IM_URL: &str = "https://u.icq.net/api/v14/wim/im/sendIM";
 const GET_CHAT_INFO_URL: &str = "https://u.icq.net/api/v14/rapi/getChatInfo";
 const JOIN_CHAT_URL: &str = "https://u.icq.net/api/v14/rapi/joinChat";
 
@@ -215,6 +216,28 @@ pub type JoinChatBody<'a> = RapiBody<'a, StampBodyParams<'a>>;
 
 pub type JoinChatResponse = RapiResponse<EmptyResponse>;
 
+#[derive(Serialize, Debug)]
+pub struct SendIMBody<'a> {
+    pub t: &'a str,
+    pub r: &'a str,
+    pub mentions: &'a str,
+    pub message: &'a str,
+    pub f: &'a str,
+    pub aimsid: &'a str,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SendIMResponseData {
+    pub msg_id: String,
+    pub hist_msg_id: u64,
+    pub before_hist_msg_id: u64,
+    pub ts: u32,
+    pub state: String,
+}
+
+pub type SendIMResponse = WebIcqResponse<SendIMResponseData>;
+
 pub async fn send_code(body: &SendCodeBody<'_>) -> Result<SendCodeResponse> {
     post_json(SEND_CODE_URL, body).await
 }
@@ -229,6 +252,10 @@ pub async fn start_session(body: &StartSessionBody<'_>) -> Result<StartSessionRe
     let params = serde_urlencoded::to_string(body).map_err(Error::UrlEncodedSerializationError)?;
     let url = START_SESSION_URL.to_string() + &params;
     post_form(&url, &StartSessionFormBody {}).await
+}
+
+pub async fn send_im(body: &SendIMBody<'_>) -> Result<SendIMResponse> {
+    post_form(&SEND_IM_URL, body).await
 }
 
 pub async fn fetch_events(fetch_base_url: &str) -> Result<FetchEventsResponse> {
