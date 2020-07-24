@@ -16,7 +16,7 @@ lazy_static! {
     static ref STATUS_ONLINE_NAME: CString = CString::new("Online").unwrap();
     static ref STATUS_OFFLINE_ID: CString = CString::new("offline").unwrap();
     static ref STATUS_OFFLINE_NAME: CString = CString::new("Offline").unwrap();
-    static ref CHAT_INFO_SN: CString = CString::new("stamp").unwrap();
+    static ref CHAT_INFO_SN: CString = CString::new("sn").unwrap();
     static ref CHAT_INFO_SN_NAME: CString = CString::new("Chat ID").unwrap();
 }
 
@@ -296,7 +296,7 @@ impl PurpleICQ {
             return;
         }
 
-        let components = self.chat_info_defaults(connection, Some(&info.stamp));
+        let components = self.chat_info_defaults(connection, Some(&info.sn));
         let mut chat = purple::Chat::new(&mut account, &info.title, components);
         chat.add_to_blist(&mut self.icq_group(info.group.as_deref()), None);
     }
