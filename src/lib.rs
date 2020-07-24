@@ -10,18 +10,36 @@ mod icq;
 mod purple;
 mod messages;
 
+pub mod status {
+    use lazy_static::lazy_static;
+    use std::ffi::CString;
+    lazy_static! {
+        pub static ref ONLINE_ID: CString = CString::new("online").unwrap();
+        pub static ref ONLINE_NAME: CString = CString::new("Online").unwrap();
+        pub static ref OFFLINE_ID: CString = CString::new("offline").unwrap();
+        pub static ref OFFLINE_NAME: CString = CString::new("Offline").unwrap();
+    }
+}
+
 lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
-    static ref STATUS_ONLINE_ID: CString = CString::new("online").unwrap();
-    static ref STATUS_ONLINE_NAME: CString = CString::new("Online").unwrap();
-    static ref STATUS_OFFLINE_ID: CString = CString::new("offline").unwrap();
-    static ref STATUS_OFFLINE_NAME: CString = CString::new("Offline").unwrap();
-    static ref CHAT_INFO_SN: CString = CString::new("sn").unwrap();
-    static ref CHAT_INFO_SN_NAME: CString = CString::new("Chat ID").unwrap();
-    static ref CHAT_INFO_STAMP: CString = CString::new("stamp").unwrap();
-    static ref CHAT_INFO_TITLE: CString = CString::new("title").unwrap();
-    static ref CHAT_INFO_GROUP: CString = CString::new("group").unwrap();
-    static ref CHAT_INFO_STATE: CString = CString::new("state").unwrap();
+}
+
+mod chat_info {
+    use lazy_static::lazy_static;
+    use std::ffi::CString;
+    lazy_static! {
+        pub static ref SN: CString = CString::new("sn").unwrap();
+        pub static ref SN_NAME: CString = CString::new("Chat ID").unwrap();
+        pub static ref STAMP: CString = CString::new("stamp").unwrap();
+        pub static ref TITLE: CString = CString::new("title").unwrap();
+        pub static ref GROUP: CString = CString::new("group").unwrap();
+        pub static ref STATE: CString = CString::new("state").unwrap();
+    }
+}
+
+pub mod chat_states {
+    pub const JOINED: &str = "joined";
 }
 
 #[derive(Debug, Clone)]
@@ -35,23 +53,23 @@ pub struct ChatInfo {
 impl ChatInfo {
     pub fn from_hashtable(table: &StrHashTable) -> Option<Self> {
         Some(Self {
-            stamp: table.lookup(&CHAT_INFO_STAMP).map(Into::into),
-            group: table.lookup(&CHAT_INFO_GROUP).map(Into::into),
-            sn: table.lookup(&CHAT_INFO_SN)?.into(),
-            title: table.lookup(&CHAT_INFO_TITLE)?.into(),
+            stamp: table.lookup(&chat_info::STAMP).map(Into::into),
+            group: table.lookup(&chat_info::GROUP).map(Into::into),
+            sn: table.lookup(&chat_info::SN)?.into(),
+            title: table.lookup(&chat_info::TITLE)?.into(),
         })
     }
 
     pub fn as_hashtable(&self) -> purple::StrHashTable {
         let mut table = purple::StrHashTable::default();
-        table.insert(&CHAT_INFO_SN, &self.sn);
+        table.insert(&chat_info::SN, &self.sn);
         if let Some(group) = &self.group {
-            table.insert(&CHAT_INFO_GROUP, &group);
+            table.insert(&chat_info::GROUP, &group);
         }
         if let Some(stamp) = &self.stamp {
-            table.insert(&CHAT_INFO_STAMP, &stamp);
+            table.insert(&chat_info::STAMP, &stamp);
         }
-        table.insert(&CHAT_INFO_TITLE, &self.title);
+        table.insert(&chat_info::TITLE, &self.title);
         table
     }
 }
@@ -147,14 +165,14 @@ impl purple::StatusTypeHandler for PurpleICQ {
         vec![
             StatusType::new(
                 PurpleStatusPrimitive::PURPLE_STATUS_AVAILABLE,
-                Some(&STATUS_ONLINE_ID),
-                Some(&STATUS_ONLINE_NAME),
+                Some(&status::ONLINE_ID),
+                Some(&status::ONLINE_NAME),
                 true,
             ),
             StatusType::new(
                 PurpleStatusPrimitive::PURPLE_STATUS_OFFLINE,
-                Some(&STATUS_OFFLINE_ID),
-                Some(&STATUS_OFFLINE_NAME),
+                Some(&status::OFFLINE_ID),
+                Some(&status::OFFLINE_NAME),
                 true,
             ),
         ]
@@ -180,8 +198,8 @@ impl purple::ListIconHandler for PurpleICQ {
 impl purple::ChatInfoHandler for PurpleICQ {
     fn chat_info(&mut self, _connection: &mut Connection) -> Vec<purple::prpl::ChatEntry> {
         vec![purple::prpl::ChatEntry {
-            label: &CHAT_INFO_SN_NAME,
-            identifier: &CHAT_INFO_SN,
+            label: &chat_info::SN_NAME,
+            identifier: &chat_info::SN,
             required: true,
             is_int: false,
             min: 0,
@@ -198,7 +216,7 @@ impl purple::ChatInfoDefaultsHandler for PurpleICQ {
         chat_name: Option<&str>,
     ) -> purple::StrHashTable {
         let mut defaults = purple::StrHashTable::default();
-        defaults.insert(CHAT_INFO_SN.as_c_str(), chat_name.unwrap_or(""));
+        defaults.insert(chat_info::SN.as_c_str(), chat_name.unwrap_or(""));
         defaults
     }
 }
@@ -220,7 +238,7 @@ impl purple::JoinChatHandler for PurpleICQ {
             }
         };
 
-        if let Some("joined") = data.lookup(&CHAT_INFO_STATE) {
+        if let Some(chat_states::JOINED) = data.lookup(&chat_info::STATE) {
             match ChatInfo::from_hashtable(data) {
                 Some(chat_info) => {
                     self.conversation_joined(connection, &chat_info);
@@ -265,7 +283,7 @@ impl purple::ConvoClosedHandler for PurpleICQ {
 
 impl purple::GetChatNameHandler for PurpleICQ {
     fn get_chat_name(data: Option<&mut purple::StrHashTable>) -> Option<String> {
-        data.and_then(|h| h.lookup(CHAT_INFO_SN.as_c_str()).map(Into::into))
+        data.and_then(|h| h.lookup(chat_info::SN.as_c_str()).map(Into::into))
     }
 }
 
@@ -398,7 +416,7 @@ impl PurpleICQ {
         }
 
         let mut components = info.as_hashtable();
-        components.insert(&CHAT_INFO_STATE, "joined");
+        components.insert(&chat_info::STATE, chat_states::JOINED);
         let mut chat = purple::Chat::new(&mut account, &info.title, components);
         chat.add_to_blist(&mut self.icq_group(info.group.as_deref()), None);
     }
