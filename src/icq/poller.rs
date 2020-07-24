@@ -5,6 +5,7 @@ use super::client::try_result;
 use super::client::try_result::TryResult;
 use super::protocol;
 use crate::messages::{AccountInfo, FdSender, SystemMessage};
+use crate::ChatInfo;
 use std::time::Duration;
 
 pub async fn fetch_events_loop(mut tx: FdSender<SystemMessage>, account_info: AccountInfo) {
@@ -41,7 +42,7 @@ pub async fn fetch_events_loop(mut tx: FdSender<SystemMessage>, account_info: Ac
             }
             Ok(fetch_events_response_data) => {
                 log::info!("Fetched Events: {:?}", fetch_events_response_data.events);
-                process_events(&tx, &account_info, fetch_events_response_data.events).await;
+                process_events(tx.clone(), &account_info, fetch_events_response_data.events).await;
                 fetch_base_url = fetch_events_response_data.fetch_base_url;
             }
         }
@@ -49,8 +50,8 @@ pub async fn fetch_events_loop(mut tx: FdSender<SystemMessage>, account_info: Ac
 }
 
 pub async fn process_events(
-    _tx: &FdSender<SystemMessage>,
-    _account_info: &AccountInfo,
+    tx: FdSender<SystemMessage>,
+    account_info: &AccountInfo,
     events: Vec<TryResult<Event>>,
 ) {
     for event in events {
@@ -63,7 +64,7 @@ pub async fn process_events(
                         process_event_buddy_list(&event_data).await;
                     }
                     EventData::HistDlgState(event_data) => {
-                        process_event_hist_dlg_state(&event_data).await;
+                        process_event_hist_dlg_state(tx.clone(), account_info, &event_data).await;
                     }
                     EventData::MyInfo(event_data) => {
                         process_event_my_info(&event_data).await;
@@ -115,6 +116,46 @@ pub async fn process_event_my_info(_event_data: &events::MyInfoData) {
     // purple_notify_userinfo
 }
 
-pub async fn process_event_hist_dlg_state(_event_data: &events::HistDlgStateData) {
-    // TODO
+fn find_author_friendly<'a>(
+    author_sn: &'a str,
+    persons: &'a [events::HistDlgStatePerson],
+) -> &'a str {
+    let mut author_friendly = author_sn;
+    for person in persons {
+        if person.sn.eq(author_sn) {
+            author_friendly = &person.friendly;
+            break;
+        }
+    }
+    author_friendly
+}
+
+pub async fn process_event_hist_dlg_state(
+    mut tx: FdSender<SystemMessage>,
+    account_info: &AccountInfo,
+    event_data: &events::HistDlgStateData,
+) {
+    // Create the chat if necessary
+    let chat_sn = event_data.sn.clone();
+    let chat_friendly = find_author_friendly(&chat_sn, &event_data.persons).to_string();
+
+    tx.handle_proxy(&account_info.handle)
+        .exec(move |plugin, protocol_data| {
+            let connection = &mut protocol_data.connection;
+            let chat_info = ChatInfo {
+                sn: chat_sn,
+                stamp: None,
+                title: chat_friendly,
+                group: None,
+            };
+            plugin.chat_joined(connection, &chat_info);
+        })
+        .await;
+
+    // Create Chat Entries
+    for message in &event_data.messages {
+        let author_sn = &message.chat.sender;
+        let _author_friendly = find_author_friendly(author_sn, &event_data.persons);
+        //chat.add_message(message)
+    }
 }
