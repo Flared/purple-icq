@@ -1,9 +1,10 @@
-use async_std::sync::{Arc, Mutex};
+use async_std::sync::{Arc, RwLock};
 use lazy_static::lazy_static;
 use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
 use std::ffi::{CStr, CString};
 use std::io::Read;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod icq;
 #[macro_use]
@@ -86,10 +87,17 @@ impl ChatInfo {
 #[derive(Debug, Default)]
 pub struct AccountData {
     phone_number: String,
-    session: Option<icq::protocol::SessionInfo>,
+    session_closed: AtomicBool,
+    session: RwLock<Option<icq::protocol::SessionInfo>>,
 }
 
-pub type AccountDataBox = Arc<Mutex<AccountData>>;
+impl Drop for AccountData {
+    fn drop(&mut self) {
+        log::info!("AccountData dropped");
+    }
+}
+
+pub type AccountDataBox = Arc<AccountData>;
 pub type Handle = purple::Handle<AccountDataBox>;
 pub type ProtocolData = purple::ProtocolData<AccountDataBox>;
 
@@ -143,10 +151,11 @@ impl purple::PrplPlugin for PurpleICQ {
 impl purple::LoginHandler for PurpleICQ {
     fn login(&mut self, account: &mut Account) {
         let phone_number = account.get_username().unwrap().into();
-        let protocol_data: AccountDataBox = Arc::new(Mutex::new(AccountData {
+        let protocol_data: AccountDataBox = Arc::new(AccountData {
             phone_number,
-            session: None,
-        }));
+            session_closed: AtomicBool::new(false),
+            session: RwLock::new(None),
+        });
 
         // Safe as long as we remove the account in "close".
         unsafe {
@@ -166,7 +175,19 @@ impl purple::LoginHandler for PurpleICQ {
 }
 impl purple::CloseHandler for PurpleICQ {
     fn close(&mut self, connection: &mut Connection) {
-        self.connections.remove(connection);
+        let handle = Handle::from(&mut *connection);
+        match self.connections.get(&handle) {
+            Some(protocol_data) => {
+                protocol_data
+                    .data
+                    .session_closed
+                    .store(true, Ordering::Relaxed);
+                self.connections.remove(connection);
+            }
+            None => {
+                log::error!("Tried closing a closed connection");
+            }
+        }
     }
 }
 impl purple::StatusTypeHandler for PurpleICQ {
@@ -300,12 +321,12 @@ impl purple::SendIMHandler for PurpleICQ {
     fn send_im(
         &mut self,
         _connection: &mut Connection,
-        who: &str,
-        message: &str,
-        flags: purple::PurpleMessageFlags,
+        _who: &str,
+        _message: &str,
+        _flags: PurpleMessageFlags,
     ) -> i32 {
-        log::info!("{}: {} [{:?}]", who, message, flags);
-        1
+        log::warn!("SendIM is not implemented");
+        -1
     }
 }
 

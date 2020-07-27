@@ -66,7 +66,7 @@ impl ICQSystem {
 
     async fn login(&mut self, account_info: AccountInfo) -> std::result::Result<(), String> {
         log::debug!("login");
-        let phone_number = { account_info.protocol_data.lock().await.phone_number.clone() };
+        let phone_number = { account_info.protocol_data.phone_number.clone() };
         let handle = &account_info.handle;
         let mut registered_account_info = {
             self.tx
@@ -137,7 +137,7 @@ impl ICQSystem {
                         .connection_proxy(&handle)
                         .set_state(purple::PurpleConnectionState::PURPLE_CONNECTED)
                         .await;
-                    account_info.protocol_data.lock().await.session = Some(session);
+                    (*account_info.protocol_data.session.write().await) = Some(session);
                     async_std::task::spawn(poller::fetch_events_loop(
                         self.tx.clone(),
                         account_info.clone(),
@@ -179,7 +179,7 @@ impl ICQSystem {
 
     async fn join_chat(&mut self, message: JoinChatMessage) -> Result<(), String> {
         log::info!("Joining stamp: {}", message.message_data.stamp);
-        let session = { message.protocol_data.lock().await.session.clone().unwrap() };
+        let session = { message.protocol_data.session.read().await.clone().unwrap() };
         let stamp = message.message_data.stamp;
         // Handle shareable URLs: https://icq.im/XXXXXXXXXXXXXX
         let stamp = if stamp.contains("icq.im/") {
@@ -217,7 +217,7 @@ impl ICQSystem {
         log::info!("send_msg({:?})", message);
         let to_sn = &message.message_data.to_sn;
         let message_body = &message.message_data.message;
-        let session = { message.protocol_data.lock().await.session.clone().unwrap() };
+        let session = { message.protocol_data.session.read().await.clone().unwrap() };
         let _msg_info = protocol::send_im(&session, to_sn, message_body)
             .await
             .map_err(|e| format!("Failed to send msg: {:?}", e))?;

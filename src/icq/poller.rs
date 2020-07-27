@@ -7,22 +7,27 @@ use super::protocol;
 use crate::messages::{AccountInfo, FdSender, SystemMessage};
 use crate::ChatInfo;
 use crate::MsgInfo;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 pub async fn fetch_events_loop(mut tx: FdSender<SystemMessage>, account_info: AccountInfo) {
     let mut fetch_base_url = {
         account_info
             .protocol_data
-            .lock()
-            .await
             .session
+            .read()
+            .await
             .as_ref()
             .unwrap()
             .fetch_base_url
             .clone()
     };
 
-    loop {
+    while !account_info
+        .protocol_data
+        .session_closed
+        .load(Ordering::Relaxed)
+    {
         // Skip if we are disconnected.
         if tx
             .account_proxy(&account_info.handle.clone())
