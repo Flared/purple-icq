@@ -62,7 +62,8 @@ impl Connection {
 
     pub fn serv_got_chat_in(&mut self, chat_input: MsgInfo) {
         unsafe {
-            let sn_hash = glib_sys::g_str_hash(chat_input.chat_sn.as_ptr() as *mut c_void);
+            let c_sn = CString::new(chat_input.chat_sn).unwrap();
+            let sn_hash = glib_sys::g_str_hash(c_sn.as_ptr() as *mut c_void);
             let who = if chat_input.author_friendly == chat_input.author_sn {
                 chat_input.author_friendly
             } else {
