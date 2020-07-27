@@ -69,14 +69,16 @@ impl Connection {
                 format!("{}!{}", chat_input.author_sn, chat_input.author_friendly)
             };
             let c_sender = CString::new(who).unwrap();
+
             let c_text = CString::new(chat_input.text).unwrap();
+            let c_escaped_text_ptr = purple_sys::purple_markup_escape_text(c_text.as_ptr(), -1);
 
             purple_sys::serv_got_chat_in(
                 self.0.as_ptr(),
                 sn_hash as i32,
                 c_sender.as_ptr(),
                 PurpleMessageFlags::PURPLE_MESSAGE_RECV,
-                c_text.as_ptr(),
+                c_escaped_text_ptr,
                 chat_input.time as i64,
             )
         }
