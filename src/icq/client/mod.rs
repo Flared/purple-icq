@@ -11,6 +11,7 @@ const START_SESSION_URL: &str = "https://u.icq.net/api/v14/wim/aim/startSession?
 const SEND_IM_URL: &str = "https://u.icq.net/api/v14/wim/im/sendIM";
 const GET_CHAT_INFO_URL: &str = "https://u.icq.net/api/v14/rapi/getChatInfo";
 const JOIN_CHAT_URL: &str = "https://u.icq.net/api/v14/rapi/joinChat";
+const FILES_INFO_URL: &str = "https://u.icq.net/api/v14/files/info";
 
 #[derive(Debug)]
 pub enum Error {
@@ -93,6 +94,11 @@ pub struct RapiBody<'a, T> {
 #[derive(Deserialize, Debug)]
 pub struct RapiResponse<T> {
     pub results: T,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ResultResponse<T> {
+    pub result: T,
 }
 
 #[derive(Deserialize, Debug)]
@@ -238,6 +244,36 @@ pub struct SendIMResponseData {
 
 pub type SendIMResponse = WebIcqResponse<SendIMResponseData>;
 
+#[derive(Serialize, Debug)]
+pub struct FilesInfoBody<'a> {
+    pub aimsid: &'a str,
+    pub previews: &'a str,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FilesInfoResponseData {
+    pub info: FilesInfoResponseDataInfo,
+    pub previews: FilesInfoResponseDataPreviews,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FilesInfoResponseDataPreviews {
+    #[serde(rename = "192")]
+    pub x192: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FilesInfoResponseDataInfo {
+    pub file_size: usize,
+    pub file_name: String,
+    pub md5: String,
+    pub dlink: String,
+    pub mime: String,
+}
+
+pub type FilesInfoResponse = ResultResponse<FilesInfoResponseData>;
+
 pub async fn send_code(body: &SendCodeBody<'_>) -> Result<SendCodeResponse> {
     post_json(SEND_CODE_URL, body).await
 }
@@ -270,6 +306,12 @@ pub async fn get_chat_info(body: &GetChatInfoBody<'_>) -> Result<GetChatInfoResp
 
 pub async fn join_chat(body: &JoinChatBody<'_>) -> Result<JoinChatResponse> {
     post_json(JOIN_CHAT_URL, body).await
+}
+
+pub async fn files_info(file_id: &str, body: &FilesInfoBody<'_>) -> Result<FilesInfoResponse> {
+    let params = serde_urlencoded::to_string(body).map_err(Error::UrlEncodedSerializationError)?;
+    let url = format!("{}/{}?{}", FILES_INFO_URL, file_id, params);
+    get_json(&url).await
 }
 
 async fn get_json<T: serde::de::DeserializeOwned>(url: &str) -> Result<T> {

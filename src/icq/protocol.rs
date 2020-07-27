@@ -21,7 +21,7 @@ pub enum Error {
     MissingCode,
 }
 
-type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone)]
 pub struct SessionInfo {
@@ -122,6 +122,20 @@ pub async fn fetch_events(fetch_base_url: &str) -> Result<client::FetchEventsRes
         .await
         .map_err(Error::ApiError)?;
     Ok(fetch_events_response.response.data)
+}
+
+pub async fn files_info(
+    session: &SessionInfo,
+    file_id: &str,
+) -> Result<client::FilesInfoResponseData> {
+    let body = client::FilesInfoBody {
+        aimsid: &session.aim_sid,
+        previews: "192,600,800,xlarge",
+    };
+    client::files_info(file_id, &body)
+        .await
+        .map_err(Error::ApiError)
+        .map(|r| r.result)
 }
 
 pub async fn get_chat_info(session: &SessionInfo, stamp: &str) -> Result<ChatInfo> {
