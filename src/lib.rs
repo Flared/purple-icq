@@ -416,21 +416,37 @@ impl PurpleICQ {
     }
 
     fn group_chat_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {
-        // Chat already joined.
         let mut account = connection.get_account();
-        let chat = purple::Chat::find(&mut account, &info.sn);
-        if chat.is_some() {
-            // TODO: Merge existing account info
-            return;
-        }
+        match purple::Chat::find(&mut account, &info.sn) {
+            Some(mut chat) => {
+                // The chat already exists.
 
-        let mut components = info.as_hashtable();
-        components.insert(&chat_info::STATE, chat_states::JOINED);
-        let mut chat = purple::Chat::new(&mut account, &info.title, components);
-        chat.add_to_blist(&mut self.icq_group(info.group.as_deref()), None);
+                // Should we replace the blist group?
+                if let Some(info_group) = &info.group {
+                    let should_replace_group = {
+                        match chat.get_group() {
+                            Some(mut chat_group) => !chat_group.get_name().eq(info_group),
+                            None => true,
+                        }
+                    };
+                    if should_replace_group {
+                        chat.add_to_blist(&mut self.get_or_create_group(Some(&info_group)), None);
+                    }
+                }
+
+                // Replace the alias
+                chat.set_alias(&info.title);
+            }
+            None => {
+                let mut components = info.as_hashtable();
+                components.insert(&chat_info::STATE, chat_states::JOINED);
+                let mut chat = purple::Chat::new(&mut account, &info.title, components);
+                chat.add_to_blist(&mut self.get_or_create_group(info.group.as_deref()), None);
+            }
+        }
     }
 
-    fn icq_group(&mut self, name: Option<&str>) -> purple::Group {
+    fn get_or_create_group(&mut self, name: Option<&str>) -> purple::Group {
         let name = name.unwrap_or("ICQ");
         Group::find(name).unwrap_or_else(|| {
             let mut group = purple::Group::new(name);

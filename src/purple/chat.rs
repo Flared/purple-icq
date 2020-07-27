@@ -36,6 +36,22 @@ impl Chat {
         }
     }
 
+    pub fn set_alias(&mut self, new_alias: &str) {
+        let c_alias = CString::new(new_alias).unwrap();
+        unsafe {
+            purple_sys::purple_blist_alias_chat(self.as_mut_ptr(), c_alias.as_ptr());
+        }
+    }
+
+    pub fn get_group(&mut self) -> Option<purple::Group> {
+        let c_group = unsafe { purple_sys::purple_chat_get_group(self.as_mut_ptr()) };
+        if c_group.is_null() {
+            None
+        } else {
+            unsafe { purple::Group::from_ptr(c_group) }
+        }
+    }
+
     pub fn add_to_blist(&mut self, group: &mut purple::Group, _node: Option<()>) {
         unsafe {
             purple_sys::purple_blist_add_chat(self.as_mut_ptr(), group.as_mut_ptr(), null_mut())
