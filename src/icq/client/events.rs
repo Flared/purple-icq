@@ -26,7 +26,7 @@ pub enum EventData {
 
     GalleryNotify(GalleryNotifyData),
 
-    ImStates(ImStatesData),
+    ImState(ImStatesData),
 }
 
 // Event: ImStates

@@ -79,7 +79,7 @@ pub async fn process_events(
                     EventData::GalleryNotify(_event_data) => {
                         // TODO
                     }
-                    EventData::ImStates(_event_data) => {
+                    EventData::ImState(_event_data) => {
                         // TODO
                     }
                 }
