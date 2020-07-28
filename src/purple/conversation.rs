@@ -61,6 +61,24 @@ impl ChatConversation {
         }
     }
 
+    pub fn get_title(&mut self) -> Option<&str> {
+        unsafe {
+            let c_value = purple_sys::purple_conversation_get_title(self.as_conversation_ptr());
+            NonNull::new(c_value as *mut c_char).map(|p| {
+                CStr::from_ptr(p.as_ptr() as *const c_char)
+                    .to_str()
+                    .unwrap()
+            })
+        }
+    }
+
+    pub fn get_connection(&mut self) -> Connection {
+        unsafe {
+            let c_connection = purple_sys::purple_conversation_get_gc(self.as_conversation_ptr());
+            Connection::from_raw(c_connection).unwrap()
+        }
+    }
+
     pub fn as_conversation_ptr(&mut self) -> *mut purple_sys::PurpleConversation {
         self.0.as_ptr() as *mut purple_sys::PurpleConversation
     }

@@ -109,6 +109,7 @@ pub struct PurpleICQ {
     system: ICQSystemHandle,
     connections: purple::Connections<AccountDataBox>,
     input_handle: Option<u32>,
+    history_command_handle: Option<PurpleCmdId>,
 }
 
 impl purple::PrplPlugin for PurpleICQ {
@@ -120,6 +121,7 @@ impl purple::PrplPlugin for PurpleICQ {
         Self {
             system,
             input_handle: None,
+            history_command_handle: None,
             connections: purple::Connections::new(),
         }
     }
@@ -219,6 +221,9 @@ impl purple::LoadHandler for PurpleICQ {
             self.system.input_rx.as_raw_fd(),
             purple::PurpleInputCondition::PURPLE_INPUT_READ,
         ));
+
+        self.history_command_handle =
+            Some(self.enable_command("history", "w", "history &lt;timestamp&gt;"));
         true
     }
 }
@@ -395,6 +400,23 @@ impl purple::InputHandler for PurpleICQ {
                 }
             }
         };
+    }
+}
+
+impl purple::CommandHandler for PurpleICQ {
+    fn command(
+        &mut self,
+        conversation: &mut ChatConversation,
+        command: &str,
+        args: &[&str],
+    ) -> PurpleCmdRet {
+        log::error!(
+            "cmd_func: conv={} cmd={} args={:?}",
+            conversation.get_title().unwrap_or("unknown"),
+            command,
+            args
+        );
+        PurpleCmdRet::PURPLE_CMD_RET_OK
     }
 }
 

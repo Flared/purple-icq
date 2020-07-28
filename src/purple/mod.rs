@@ -9,11 +9,15 @@ pub use self::hashtable::StrHashTable;
 pub use self::loader::{PrplInfo, PrplPluginLoader, RegisterContext};
 pub use self::plugin::Plugin;
 pub use self::status_type::{PurpleStatusPrimitive, StatusType};
+use glib::translate::FromGlibPtrContainer;
+pub use purple_sys;
 pub use purple_sys::{
-    PurpleConnectionError, PurpleConnectionState, PurpleConversationType, PurpleInputCondition,
-    PurpleMessageFlags,
+    PurpleCmdId, PurpleCmdRet, PurpleConnectionError, PurpleConnectionState,
+    PurpleConversationType, PurpleInputCondition, PurpleMessageFlags,
 };
-use std::os::raw::c_void;
+use std::ffi::{CStr, CString};
+use std::os::raw::{c_char, c_void};
+use std::ptr;
 
 pub mod account;
 mod blist;
@@ -65,4 +69,60 @@ where
 {
     let closure = &*(user_data as *mut F);
     closure(df, cond);
+}
+
+pub fn register_cmd<F>(
+    cmd: &str,
+    args: &str,
+    help_text: &str,
+    callback: F,
+) -> purple_sys::PurpleCmdId
+where
+    F: Fn(&mut ChatConversation, &str, &[&str]) -> purple_sys::PurpleCmdRet + 'static,
+{
+    let user_data = Box::into_raw(Box::new(callback)) as *mut c_void;
+    let c_cmd = CString::new(cmd).unwrap();
+    let c_args = CString::new(args).unwrap();
+    let c_help = CString::new(help_text).unwrap();
+
+    unsafe {
+        purple_sys::purple_cmd_register(
+            c_cmd.as_ptr(),
+            c_args.as_ptr(),
+            purple_sys::PurpleCmdPriority::PURPLE_CMD_P_DEFAULT,
+            purple_sys::PurpleCmdFlag::PURPLE_CMD_FLAG_CHAT,
+            ptr::null(),
+            Some(trampoline_cmd::<F>),
+            c_help.as_ptr(),
+            user_data,
+        )
+    }
+}
+
+unsafe extern "C" fn trampoline_cmd<F>(
+    conversation_ptr: *mut purple_sys::PurpleConversation,
+    c_cmd: *const c_char,
+    c_args: *mut *mut c_char,
+    _c_error: *mut *mut c_char,
+    user_data: *mut c_void,
+) -> purple_sys::PurpleCmdRet
+where
+    F: Fn(&mut ChatConversation, &str, &[&str]) -> purple_sys::PurpleCmdRet,
+{
+    let closure = &*(user_data as *mut F);
+
+    let cmd = CStr::from_ptr(c_cmd).to_str().unwrap();
+    let args: Vec<String> = FromGlibPtrContainer::from_glib_none(c_args);
+    // TODO: This is a conversation. Not necessairly a ChatConersation.
+    let mut conversation =
+        ChatConversation::from_ptr(conversation_ptr as *mut purple_sys::PurpleConvChat).unwrap();
+
+    closure(
+        &mut conversation,
+        cmd,
+        args.iter()
+            .map(std::ops::Deref::deref)
+            .collect::<Vec<&str>>()
+            .as_slice(),
+    )
 }

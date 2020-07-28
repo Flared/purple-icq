@@ -1,5 +1,6 @@
 use super::super::{
-    prpl, Account, Connection, Plugin, PurpleMessageFlags, StatusType, StrHashTable,
+    prpl, Account, ChatConversation, Connection, Plugin, PurpleMessageFlags, StatusType,
+    StrHashTable,
 };
 use std::ffi::CStr;
 
@@ -86,5 +87,27 @@ pub trait InputHandler {
 
     fn disable_input(&self, input_handle: u32) -> bool {
         unsafe { purple_sys::purple_input_remove(input_handle) != 0 }
+    }
+}
+
+pub trait CommandHandler {
+    fn command(
+        &mut self,
+        conversation: &mut ChatConversation,
+        command: &str,
+        args: &[&str],
+    ) -> purple_sys::PurpleCmdRet;
+    fn enable_command(&mut self, cmd: &str, args: &str, help_text: &str) -> purple_sys::PurpleCmdId
+    where
+        Self: 'static,
+    {
+        let self_ptr: *mut Self = self;
+        crate::purple::register_cmd(cmd, args, help_text, move |conversation, cmd, args| {
+            let this = unsafe { &mut *self_ptr };
+            this.command(conversation, cmd, args)
+        })
+    }
+    fn disable_command(&self, command_id: purple_sys::PurpleCmdId) {
+        unsafe { purple_sys::purple_cmd_unregister(command_id) }
     }
 }
