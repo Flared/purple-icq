@@ -1,6 +1,5 @@
 use super::super::{
-    prpl, Account, ChatConversation, Connection, Plugin, PurpleMessageFlags, StatusType,
-    StrHashTable,
+    prpl, Account, Connection, Conversation, Plugin, PurpleMessageFlags, StatusType, StrHashTable,
 };
 use std::ffi::CStr;
 
@@ -48,6 +47,10 @@ pub trait ConvoClosedHandler {
     fn convo_closed(&mut self, connection: &mut Connection, who: Option<&str>);
 }
 
+pub trait GetChatBuddyAlias {
+    fn get_cb_alias(&mut self, connection: &mut Connection, id: i32, who: &str) -> Option<String>;
+}
+
 pub trait GetChatNameHandler {
     fn get_chat_name(data: Option<&mut StrHashTable>) -> Option<String>;
 }
@@ -93,7 +96,7 @@ pub trait InputHandler {
 pub trait CommandHandler {
     fn command(
         &mut self,
-        conversation: &mut ChatConversation,
+        conversation: &mut Conversation,
         command: &str,
         args: &[&str],
     ) -> purple_sys::PurpleCmdRet;

@@ -181,7 +181,10 @@ pub type GetChatInfoBody<'a> = RapiBody<'a, GetChatInfoBodyParams<'a>>;
 #[serde(rename_all = "camelCase")]
 pub struct GetChatInfoBodyParams<'a> {
     pub member_limit: u32,
-    pub stamp: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stamp: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sn: Option<&'a str>,
 }
 
 type GetChatInfoResponse = RapiResponse<GetChatInfoResponseData>;
@@ -204,18 +207,35 @@ pub struct GetChatInfoResponseData {
     //pub admins_count: usize,
     //pub default_role: String,
     //pub regions: String,
+    pub members_version: String,
+    pub info_version: String,
     pub sn: String,
     //pub abuse_reports_current_count: usize,
-    pub persons: Vec<ChatInfoResponsePerson>,
+    pub members: Vec<ChatInfoResponseMember>,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct ChatInfoResponsePerson {
+pub struct ChatInfoResponseMember {
     pub sn: String,
+    pub role: String,
+    #[serde(default)]
+    pub user_state: ChatInfoResponseMemberUserState,
+    pub friendly: Option<String>,
+    pub anketa: ChatInfoResponseMemberAnketa,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatInfoResponseMemberAnketa {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
-    pub friendly: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct ChatInfoResponseMemberUserState {
+    #[serde(rename = "lastseen")]
+    pub last_seen: Option<u64>,
 }
 
 pub type JoinChatBody<'a> = RapiBody<'a, StampBodyParams<'a>>;

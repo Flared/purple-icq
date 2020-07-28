@@ -85,15 +85,22 @@ pub struct SendMsgMessageData {
     pub message: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct GetChatInfoMessageData {
+    pub sn: String,
+}
+
 #[derive(Debug)]
 pub enum PurpleMessage {
     Login(AccountInfo),
     JoinChat(JoinChatMessage),
     SendMsg(SendMsgMessage),
+    GetChatInfo(GetChatInfoMessage),
 }
 
 pub type JoinChatMessage = PurpleMessageWithHandle<JoinChatMessageData>;
 pub type SendMsgMessage = PurpleMessageWithHandle<SendMsgMessageData>;
+pub type GetChatInfoMessage = PurpleMessageWithHandle<GetChatInfoMessageData>;
 
 impl PurpleMessage {
     pub fn join_chat(handle: Handle, protocol_data: AccountDataBox, stamp: String) -> Self {
@@ -114,6 +121,14 @@ impl PurpleMessage {
             handle,
             protocol_data,
             message_data: SendMsgMessageData { to_sn, message },
+        })
+    }
+
+    pub fn get_chat_info(handle: Handle, protocol_data: AccountDataBox, sn: String) -> Self {
+        Self::GetChatInfo(GetChatInfoMessage {
+            handle,
+            protocol_data,
+            message_data: GetChatInfoMessageData { sn },
         })
     }
 }

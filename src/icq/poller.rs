@@ -6,8 +6,8 @@ use super::client::try_result;
 use super::client::try_result::TryResult;
 use super::protocol;
 use crate::messages::{AccountInfo, FdSender, SystemMessage};
-use crate::ChatInfo;
 use crate::MsgInfo;
+use crate::{ChatInfoVersionHandler, PartialChatInfo};
 use futures::future;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -119,9 +119,8 @@ pub async fn process_event_buddy_list(
         for buddy in &group.buddies {
             match &buddy.user_type {
                 events::UserType::Chat => {
-                    let chat_info = ChatInfo {
+                    let chat_info = PartialChatInfo {
                         sn: buddy.aim_id.clone(),
-                        stamp: None,
                         title: match &buddy.friendly {
                             Some(friendly) => friendly.clone(),
                             None => buddy.aim_id.clone(),
@@ -131,7 +130,11 @@ pub async fn process_event_buddy_list(
                     tx.handle_proxy(&account_info.handle)
                         .exec(move |plugin, protocol_data| {
                             let connection = &mut protocol_data.connection;
-                            plugin.chat_joined(connection, &chat_info);
+                            plugin.chat_joined(
+                                connection,
+                                &chat_info,
+                                &ChatInfoVersionHandler::DoNothing,
+                            );
                         })
                         .await;
                 }
@@ -183,22 +186,27 @@ pub async fn process_event_hist_dlg_state(
     let chat_sn = event_data.sn.clone();
     let chat_friendly = find_author_friendly(&chat_sn, &event_data.persons).to_string();
 
-    let chat_info = ChatInfo {
+    let chat_info = PartialChatInfo {
         sn: chat_sn.clone(),
-        stamp: None,
         title: chat_friendly,
-        group: None,
+        ..Default::default()
     };
+    let info_version =
+        ChatInfoVersionHandler::Check(event_data.mchat_state.clone().map(Into::into));
 
     tx.handle_proxy(&account_info.handle)
         .exec(move |plugin, protocol_data| {
             let connection = &mut protocol_data.connection;
-            plugin.chat_joined(connection, &chat_info);
+            plugin.chat_joined(connection, &chat_info, &info_version);
         })
         .await;
 
     // Create Chat Entries
     for message in &event_data.messages {
+        let message_text = match message.text.as_ref() {
+            Some(m) => m,
+            None => continue,
+        };
         // For group conversation:
         // - event_data.sn is the Group's sn
         // - message.chat.sender is the author's sn
@@ -214,7 +222,7 @@ pub async fn process_event_hist_dlg_state(
         };
         let author_friendly = find_author_friendly(&author_sn, &event_data.persons).to_string();
 
-        let message_text = htmlescape::encode_minimal(&message.text);
+        let message_text = htmlescape::encode_minimal(&message_text);
         let message_text = process_message_files(Cow::from(&message_text), &session).await;
 
         let chat_input = MsgInfo {

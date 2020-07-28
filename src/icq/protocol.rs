@@ -12,8 +12,8 @@ const CAPS: &str = "094613584C7F11D18222444553540000,0946135C4C7F11D182224445535
 const EVENTS: &str = "myInfo,presence,buddylist,typing,hiddenChat,hist,mchat,sentIM,imState,dataIM,offlineIM,userAddedToBuddyList,service,lifestream,apps,permitDeny,diff,webrtcMsg";
 const PRESENCE_FIELDS: &str = "aimId,displayId,friendly,friendlyName,state,userType,statusMsg,statusTime,lastseen,ssl,mute,abContactName,abPhoneNumber,abPhones,official,quiet,autoAddition,largeIconId,nick,userState";
 
-type ChatInfo = client::GetChatInfoResponseData;
-type MsgInfo = client::SendIMResponseData;
+pub type ChatInfo = client::GetChatInfoResponseData;
+pub type MsgInfo = client::SendIMResponseData;
 
 #[derive(Debug)]
 pub enum Error {
@@ -138,13 +138,30 @@ pub async fn files_info(
         .map(|r| r.result)
 }
 
+pub async fn get_chat_info_by_sn(session: &SessionInfo, sn: &str) -> Result<ChatInfo> {
+    let get_chat_info_body = client::GetChatInfoBody {
+        aimsid: &session.aim_sid,
+        req_id: &request_id(),
+        params: client::GetChatInfoBodyParams {
+            member_limit: 50,
+            stamp: None,
+            sn: Some(sn),
+        },
+    };
+    client::get_chat_info(&get_chat_info_body)
+        .await
+        .map_err(Error::ApiError)
+        .map(|r| r.results)
+}
+
 pub async fn get_chat_info(session: &SessionInfo, stamp: &str) -> Result<ChatInfo> {
     let get_chat_info_body = client::GetChatInfoBody {
         aimsid: &session.aim_sid,
         req_id: &request_id(),
         params: client::GetChatInfoBodyParams {
             member_limit: 50,
-            stamp,
+            stamp: Some(stamp),
+            sn: None,
         },
     };
     client::get_chat_info(&get_chat_info_body)

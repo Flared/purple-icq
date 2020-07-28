@@ -1,4 +1,5 @@
 use async_std::sync::{Arc, RwLock};
+use chat_info::{ChatInfo, ChatInfoVersionHandler, PartialChatInfo};
 use lazy_static::lazy_static;
 use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
@@ -9,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 mod icq;
 #[macro_use]
 mod purple;
+mod chat_info;
 mod messages;
 
 pub mod status {
@@ -30,21 +32,12 @@ mod blist_node {
     pub const LAST_SEEN_TIMESTAMP: &str = "last_seen_timestamp";
 }
 
-mod chat_info {
-    use lazy_static::lazy_static;
-    use std::ffi::CString;
-    lazy_static! {
-        pub static ref SN: CString = CString::new("sn").unwrap();
-        pub static ref SN_NAME: CString = CString::new("Chat ID").unwrap();
-        pub static ref STAMP: CString = CString::new("stamp").unwrap();
-        pub static ref TITLE: CString = CString::new("title").unwrap();
-        pub static ref GROUP: CString = CString::new("group").unwrap();
-        pub static ref STATE: CString = CString::new("state").unwrap();
-    }
-}
-
 pub mod chat_states {
     pub const JOINED: &str = "joined";
+}
+
+pub mod conv_data {
+    pub const CHAT_INFO: &str = "chat_info";
 }
 
 #[derive(Debug, Clone)]
@@ -54,38 +47,6 @@ pub struct MsgInfo {
     pub author_friendly: String,
     pub text: String,
     pub time: i64,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChatInfo {
-    pub stamp: Option<String>,
-    pub group: Option<String>,
-    pub sn: String,
-    pub title: String,
-}
-
-impl ChatInfo {
-    pub fn from_hashtable(table: &StrHashTable) -> Option<Self> {
-        Some(Self {
-            stamp: table.lookup(&chat_info::STAMP).map(Into::into),
-            group: table.lookup(&chat_info::GROUP).map(Into::into),
-            sn: table.lookup(&chat_info::SN)?.into(),
-            title: table.lookup(&chat_info::TITLE)?.into(),
-        })
-    }
-
-    pub fn as_hashtable(&self) -> purple::StrHashTable {
-        let mut table = purple::StrHashTable::default();
-        table.insert(&chat_info::SN, &self.sn);
-        if let Some(group) = &self.group {
-            table.insert(&chat_info::GROUP, &group);
-        }
-        if let Some(stamp) = &self.stamp {
-            table.insert(&chat_info::STAMP, &stamp);
-        }
-        table.insert(&chat_info::TITLE, &self.title);
-        table
-    }
 }
 
 #[derive(Debug, Default)]
@@ -149,6 +110,7 @@ impl purple::PrplPlugin for PurpleICQ {
             .enable_chat_send()
             .enable_convo_closed()
             .enable_get_chat_name()
+            .enable_get_cb_alias()
             .enable_list_icon()
             .enable_status_types()
     }
@@ -165,15 +127,13 @@ impl purple::LoginHandler for PurpleICQ {
 
         // Safe as long as we remove the account in "close".
         unsafe {
-            self.connections.add(
-                &mut account.get_connection().unwrap(),
-                protocol_data.clone(),
-            )
+            self.connections
+                .add(account.get_connection().unwrap(), protocol_data.clone())
         };
         self.system
             .tx
             .try_send(PurpleMessage::Login(AccountInfo {
-                handle: Handle::from(account),
+                handle: Handle::from(&mut *account),
                 protocol_data,
             }))
             .unwrap();
@@ -188,7 +148,7 @@ impl purple::CloseHandler for PurpleICQ {
                     .data
                     .session_closed
                     .store(true, Ordering::Relaxed);
-                self.connections.remove(connection);
+                self.connections.remove(*connection);
             }
             None => {
                 log::error!("Tried closing a closed connection");
@@ -277,10 +237,26 @@ impl purple::JoinChatHandler for PurpleICQ {
             }
         };
 
+        log::info!("Joining {}", stamp);
+
+        let handle = Handle::from(&mut *connection);
+        let protocol_data = self
+            .connections
+            .get(&handle)
+            .expect("Tried joining chat on closed connection");
+
         if let Some(chat_states::JOINED) = data.lookup(&chat_info::STATE) {
-            match ChatInfo::from_hashtable(data) {
+            match PartialChatInfo::from_hashtable(data) {
                 Some(chat_info) => {
                     self.conversation_joined(connection, &chat_info);
+                    self.system
+                        .tx
+                        .try_send(PurpleMessage::get_chat_info(
+                            handle,
+                            protocol_data.data.clone(),
+                            chat_info.sn,
+                        ))
+                        .unwrap();
                     return;
                 }
                 None => {
@@ -288,14 +264,6 @@ impl purple::JoinChatHandler for PurpleICQ {
                 }
             }
         }
-
-        log::info!("Joining {}", stamp);
-
-        let handle = Handle::from(connection);
-        let protocol_data = self
-            .connections
-            .get(&handle)
-            .expect("Tried joining chat on closed connection");
 
         self.system
             .tx
@@ -309,14 +277,39 @@ impl purple::JoinChatHandler for PurpleICQ {
 }
 
 impl purple::ChatLeaveHandler for PurpleICQ {
-    fn chat_leave(&mut self, _connection: &mut Connection, id: i32) {
-        log::info!("Chat leave: {}", id)
+    fn chat_leave(&mut self, connection: &mut Connection, id: i32) {
+        log::info!("Chat leave: {}", id);
+        match Conversation::find(connection, id) {
+            Some(mut conversation) => {
+                unsafe { conversation.remove_data::<ChatInfo>(conv_data::CHAT_INFO) };
+            }
+            None => {
+                log::warn!("Leaving chat without conversation");
+            }
+        }
     }
 }
 
 impl purple::ConvoClosedHandler for PurpleICQ {
     fn convo_closed(&mut self, _connection: &mut Connection, who: Option<&str>) {
         log::info!("Convo closed: {:?}", who)
+    }
+}
+
+impl purple::GetChatBuddyAlias for PurpleICQ {
+    fn get_cb_alias(&mut self, connection: &mut Connection, id: i32, who: &str) -> Option<String> {
+        log::info!("GetChatBuddyAlias: {}, {}", id, who);
+        Conversation::find(connection, id).and_then(|mut c| {
+            unsafe { c.get_data::<ChatInfo>(conv_data::CHAT_INFO) }.and_then(|info| {
+                info.members.iter().find_map(|m| {
+                    if m.sn == who {
+                        m.friendly_name.clone()
+                    } else {
+                        None
+                    }
+                })
+            })
+        })
     }
 }
 
@@ -348,7 +341,7 @@ impl purple::ChatSendHandler for PurpleICQ {
         flags: PurpleMessageFlags,
     ) -> i32 {
         log::info!("{}: {} [{:?}]", id, message, flags);
-        let mut conversation = match ChatConversation::find(connection, id) {
+        let mut conversation = match Conversation::find(connection, id) {
             Some(c) => c,
             None => {
                 log::error!("Conversation not found");
@@ -356,22 +349,22 @@ impl purple::ChatSendHandler for PurpleICQ {
             }
         };
 
-        let sn = match conversation.get_data("sn") {
-            Some(sn) => sn,
+        let sn = match unsafe { conversation.get_data::<ChatInfo>(conv_data::CHAT_INFO) } {
+            Some(info) => info.sn.clone(),
             None => {
                 log::error!("SN not found");
                 return -1;
             }
         };
 
-        let handle = Handle::from(connection);
+        let handle = Handle::from(&mut *connection);
         let protocol_data = self.connections.get(&handle).expect("Connection closed");
         self.system
             .tx
             .try_send(PurpleMessage::send_msg(
                 handle,
                 protocol_data.data.clone(),
-                sn.into(),
+                sn,
                 message.into(),
             ))
             .unwrap();
@@ -406,7 +399,7 @@ impl purple::InputHandler for PurpleICQ {
 impl purple::CommandHandler for PurpleICQ {
     fn command(
         &mut self,
-        conversation: &mut ChatConversation,
+        conversation: &mut Conversation,
         command: &str,
         args: &[&str],
     ) -> PurpleCmdRet {
@@ -466,11 +459,10 @@ impl PurpleICQ {
                     node.set_string(&blist_node::LAST_SEEN_TIMESTAMP, &new_timestamp.to_string());
                     self.conversation_joined(
                         connection,
-                        &ChatInfo {
-                            group: None,
+                        &PartialChatInfo {
                             sn: msg_info.chat_sn.clone(),
-                            stamp: None,
                             title: msg_info.author_friendly.clone(),
+                            ..Default::default()
                         },
                     );
                 }
@@ -487,16 +479,48 @@ impl PurpleICQ {
         connection.serv_got_chat_in(msg_info);
     }
 
-    pub fn chat_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {
+    pub fn chat_joined(
+        &mut self,
+        connection: &mut Connection,
+        info: &PartialChatInfo,
+        info_version: &ChatInfoVersionHandler,
+    ) -> purple::Chat {
         log::info!("chat joined: {}", info.sn);
-        if info.sn.ends_with("@chat.agent") {
+        let mut chat = if info.sn.ends_with("@chat.agent") {
             self.group_chat_joined(connection, info)
         } else {
-            //todo!()
-        }
+            todo!()
+        };
+
+        if let ChatInfoVersionHandler::Check(version) = info_version {
+            if version
+                .as_ref()
+                .map(|v| v.need_update(&mut chat.as_blist_node()))
+                .unwrap_or(true)
+            {
+                let handle = Handle::from(&mut *connection);
+                let protocol_data = self
+                    .connections
+                    .get(&handle)
+                    .expect("Tried joining chat on closed connection");
+                self.system
+                    .tx
+                    .try_send(PurpleMessage::get_chat_info(
+                        handle,
+                        protocol_data.data.clone(),
+                        info.sn.clone(),
+                    ))
+                    .unwrap();
+            }
+        };
+        chat
     }
 
-    fn group_chat_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {
+    fn group_chat_joined(
+        &mut self,
+        connection: &mut Connection,
+        info: &PartialChatInfo,
+    ) -> purple::Chat {
         let mut account = connection.get_account();
         match purple::Chat::find(&mut account, &info.sn) {
             Some(mut chat) => {
@@ -517,12 +541,14 @@ impl PurpleICQ {
 
                 // Replace the alias
                 chat.set_alias(&info.title);
+                chat
             }
             None => {
                 let mut components = info.as_hashtable();
                 components.insert(&chat_info::STATE, chat_states::JOINED);
                 let mut chat = purple::Chat::new(&mut account, &info.title, components);
                 chat.add_to_blist(&mut self.get_or_create_group(info.group.as_deref()), None);
+                chat
             }
         }
     }
@@ -536,10 +562,10 @@ impl PurpleICQ {
         })
     }
 
-    pub fn conversation_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {
+    pub fn conversation_joined(&mut self, connection: &mut Connection, info: &PartialChatInfo) {
         match connection.get_account().find_chat_conversation(&info.sn) {
             Some(mut conversation) => {
-                if conversation.has_left() {
+                if conversation.get_chat_data().unwrap().has_left() {
                     log::error!("Trying to join left conversation");
                 } else {
                     conversation.present();
@@ -547,11 +573,34 @@ impl PurpleICQ {
             }
             None => {
                 let mut conversation = connection.serv_got_joined_chat(&info.sn).unwrap();
-                conversation.set_data("sn", &info.sn);
-                if let Some(stamp) = &info.stamp {
-                    conversation.set_data("stamp", stamp);
-                }
                 conversation.set_title(&info.title);
+            }
+        }
+    }
+
+    pub fn load_chat_info(&mut self, connection: &mut Connection, info: &ChatInfo) {
+        log::debug!("loading chat info: {:?}", info);
+
+        let mut chat = self.chat_joined(
+            connection,
+            &info.as_partial(),
+            &ChatInfoVersionHandler::DoNothing,
+        );
+
+        match connection.get_account().find_chat_conversation(&info.sn) {
+            Some(mut conversation) => {
+                let mut node = chat.as_blist_node();
+                info.write_version_info(&mut node);
+
+                let mut chat_conversation = conversation.get_chat_data().unwrap();
+                unsafe { conversation.set_data(conv_data::CHAT_INFO, info.clone()) };
+                chat_conversation.clear_users();
+                for member in &info.members {
+                    chat_conversation.add_user(&member.sn, "", member.role.as_flags(), false);
+                }
+            }
+            None => {
+                log::warn!("Loaded chat info for no conversation");
             }
         }
     }

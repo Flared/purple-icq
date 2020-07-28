@@ -198,6 +198,7 @@ pub struct HistDlgStateData {
     //pub unread_cnt: u32,
     pub messages: Vec<HistDlgStateMessage>,
     pub persons: Vec<HistDlgStatePerson>, // Information about the users involved in the messages.
+    pub mchat_state: Option<HistDlgStateMChatState>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -232,7 +233,7 @@ pub struct HistDlgStateMessage {
     //pub msg_id: String,
     pub time: i64,
     //pub locale: String,
-    pub text: String,
+    pub text: Option<String>,
     //pub media_type: String,
     pub chat: Option<HistDlgStateMessageChat>,
 }
@@ -249,4 +250,11 @@ pub struct HistDlgStateMessageChat {
     // pub live: Option<bool>
     pub sender: String, // The sender's sn
     pub name: String,   // The chat name
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct HistDlgStateMChatState {
+    pub members_version: String,
+    pub info_version: String,
 }
