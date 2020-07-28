@@ -200,9 +200,10 @@ pub async fn process_event_hist_dlg_state(
             time: message.time,
         };
 
-        tx.connection_proxy(&account_info.handle)
-            .exec(move |connection| {
-                connection.serv_got_chat_in(chat_input);
+        tx.handle_proxy(&account_info.handle)
+            .exec(move |plugin, protocol_data| {
+                let connection = &mut protocol_data.connection;
+                plugin.serv_got_chat_in(connection, chat_input);
             })
             .await;
     }

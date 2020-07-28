@@ -16,6 +16,7 @@ pub use purple_sys::{
 use std::os::raw::c_void;
 
 pub mod account;
+mod blist;
 mod chat;
 mod connection;
 mod conversation;

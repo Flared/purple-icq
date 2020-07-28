@@ -25,6 +25,10 @@ lazy_static! {
     static ref ICON_FILE: CString = CString::new("icq").unwrap();
 }
 
+mod blist_node {
+    pub const LAST_SEEN_TIMESTAMP: &str = "last_seen_timestamp";
+}
+
 mod chat_info {
     use lazy_static::lazy_static;
     use std::ffi::CString;
@@ -404,6 +408,40 @@ impl PurpleICQ {
                     });
             }
         }
+    }
+
+    pub fn serv_got_chat_in(&mut self, connection: &mut Connection, msg_info: MsgInfo) {
+        match purple::Chat::find(&mut connection.get_account(), &msg_info.chat_sn) {
+            Some(mut chat) => {
+                let mut node = chat.as_blist_node();
+                let last_timestamp: i64 = node
+                    .get_string(&blist_node::LAST_SEEN_TIMESTAMP)
+                    .and_then(|t| t.parse::<i64>().ok())
+                    .unwrap_or(0);
+                let new_timestamp = msg_info.time;
+                if new_timestamp > last_timestamp {
+                    node.set_string(&blist_node::LAST_SEEN_TIMESTAMP, &new_timestamp.to_string());
+                    self.conversation_joined(
+                        connection,
+                        &ChatInfo {
+                            group: None,
+                            sn: msg_info.chat_sn.clone(),
+                            stamp: None,
+                            title: msg_info.author_friendly.clone(),
+                        },
+                    );
+                }
+            }
+            None => {
+                // Don't log errors for DMs because they are not yet supported.
+                // It happens all the time.
+                if msg_info.chat_sn.ends_with("@chat.agent") {
+                    log::error!("Got message for unknown chat {}", msg_info.chat_sn);
+                }
+            }
+        }
+
+        connection.serv_got_chat_in(msg_info);
     }
 
     pub fn chat_joined(&mut self, connection: &mut Connection, info: &ChatInfo) {

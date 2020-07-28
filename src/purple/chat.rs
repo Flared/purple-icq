@@ -1,3 +1,4 @@
+use super::blist::BlistNode;
 use super::ffi::{AsMutPtr, AsPtr, IntoGlibPtr};
 use crate::purple;
 use std::ffi::CString;
@@ -34,6 +35,10 @@ impl Chat {
                 c_name.as_ptr(),
             ))
         }
+    }
+
+    pub fn as_blist_node(&mut self) -> BlistNode {
+        unsafe { BlistNode::from_ptr(self.0.as_ptr() as *mut purple_sys::PurpleBlistNode).unwrap() }
     }
 
     pub fn set_alias(&mut self, new_alias: &str) {
