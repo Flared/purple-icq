@@ -11,9 +11,6 @@ lazy_static! {
     pub static ref STATE: CString = CString::new("state").unwrap();
 }
 
-const MEMBERS_VERSION: &str = "members_version";
-const INFO_VERSION: &str = "info_version";
-
 #[derive(Debug, Clone)]
 pub struct MemberRole(String);
 
@@ -49,12 +46,6 @@ pub struct ChatMember {
 pub struct ChatInfoVersion {
     pub members_version: String,
     pub info_version: String,
-}
-
-#[derive(Debug, Clone)]
-pub enum ChatInfoVersionHandler {
-    Check(Option<ChatInfoVersion>),
-    DoNothing,
 }
 
 impl MemberRole {
@@ -96,27 +87,9 @@ impl ChatInfo {
         }
     }
 
-    pub fn write_version_info(&self, node: &mut purple::BlistNode) {
-        node.set_string(MEMBERS_VERSION, &self.members_version);
-        node.set_string(INFO_VERSION, &self.info_version);
-    }
-}
-
-impl ChatInfoVersion {
-    pub fn need_update(&self, node: &mut purple::BlistNode) -> bool {
-        match node.get_string(MEMBERS_VERSION) {
-            None => return true,
-            Some(v) if v != self.members_version => return true,
-            _ => (),
-        };
-
-        match node.get_string(INFO_VERSION) {
-            None => return true,
-            Some(v) if v != self.info_version => return true,
-            _ => (),
-        };
-
-        false
+    pub fn need_update(&self, new_version: &ChatInfoVersion) -> bool {
+        self.members_version < new_version.members_version
+            || self.info_version < new_version.info_version
     }
 }
 

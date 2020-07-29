@@ -5,7 +5,7 @@ use crate::messages::{
     SendMsgMessage, SystemMessage,
 };
 use crate::purple;
-use crate::{ChatInfo, ChatInfoVersionHandler, Handle};
+use crate::{ChatInfo, Handle};
 use async_std::sync::{channel, Receiver};
 
 const CHANNEL_CAPACITY: usize = 1024;
@@ -187,7 +187,7 @@ impl ICQSystem {
 
         self.tx
             .handle_proxy(&message.handle)
-            .exec(move |plugin, protocol_data| {
+            .exec_no_return(move |plugin, protocol_data| {
                 let chat_info = ChatInfo::from(chat_info_response);
                 let connection = &mut protocol_data.connection;
                 plugin.load_chat_info(connection, &chat_info);
@@ -217,15 +217,11 @@ impl ICQSystem {
 
         self.tx
             .handle_proxy(&message.handle)
-            .exec(move |plugin, protocol_data| {
+            .exec_no_return(move |plugin, protocol_data| {
                 let chat_info = ChatInfo::from(chat_info_response);
                 let partial_info = chat_info.as_partial();
                 let connection = &mut protocol_data.connection;
-                plugin.chat_joined(
-                    connection,
-                    &partial_info,
-                    &ChatInfoVersionHandler::DoNothing,
-                );
+                plugin.chat_joined(connection, &partial_info);
                 plugin.conversation_joined(connection, &partial_info);
                 plugin.load_chat_info(connection, &chat_info);
             })

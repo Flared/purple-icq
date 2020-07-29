@@ -1,5 +1,5 @@
 use async_std::sync::{Arc, RwLock};
-use chat_info::{ChatInfo, ChatInfoVersionHandler, PartialChatInfo};
+use chat_info::{ChatInfo, ChatInfoVersion, PartialChatInfo};
 use lazy_static::lazy_static;
 use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
@@ -479,41 +479,13 @@ impl PurpleICQ {
         connection.serv_got_chat_in(msg_info);
     }
 
-    pub fn chat_joined(
-        &mut self,
-        connection: &mut Connection,
-        info: &PartialChatInfo,
-        info_version: &ChatInfoVersionHandler,
-    ) -> purple::Chat {
+    pub fn chat_joined(&mut self, connection: &mut Connection, info: &PartialChatInfo) {
         log::info!("chat joined: {}", info.sn);
-        let mut chat = if info.sn.ends_with("@chat.agent") {
+        if info.sn.ends_with("@chat.agent") {
             self.group_chat_joined(connection, info)
         } else {
             todo!()
         };
-
-        if let ChatInfoVersionHandler::Check(version) = info_version {
-            if version
-                .as_ref()
-                .map(|v| v.need_update(&mut chat.as_blist_node()))
-                .unwrap_or(true)
-            {
-                let handle = Handle::from(&mut *connection);
-                let protocol_data = self
-                    .connections
-                    .get(&handle)
-                    .expect("Tried joining chat on closed connection");
-                self.system
-                    .tx
-                    .try_send(PurpleMessage::get_chat_info(
-                        handle,
-                        protocol_data.data.clone(),
-                        info.sn.clone(),
-                    ))
-                    .unwrap();
-            }
-        };
-        chat
     }
 
     fn group_chat_joined(
@@ -578,20 +550,45 @@ impl PurpleICQ {
         }
     }
 
+    pub fn check_chat_info(
+        &mut self,
+        connection: &mut Connection,
+        sn: &str,
+        version: &ChatInfoVersion,
+    ) {
+        match connection.get_account().find_chat_conversation(&sn) {
+            Some(mut conversation) => {
+                let chat_info = unsafe { conversation.get_data::<ChatInfo>(conv_data::CHAT_INFO) };
+                if chat_info
+                    .map(|chat_info| chat_info.need_update(version))
+                    .unwrap_or(true)
+                {
+                    log::info!("Fetching chat info: {}", sn);
+                    let handle = Handle::from(&mut *connection);
+                    let protocol_data = self
+                        .connections
+                        .get(&handle)
+                        .expect("Tried get chat info on closed connection");
+                    self.system
+                        .tx
+                        .try_send(PurpleMessage::get_chat_info(
+                            handle,
+                            protocol_data.data.clone(),
+                            sn.to_string(),
+                        ))
+                        .unwrap();
+                }
+            }
+            None => {
+                log::warn!("Checking chat info for no conversation");
+            }
+        }
+    }
+
     pub fn load_chat_info(&mut self, connection: &mut Connection, info: &ChatInfo) {
         log::debug!("loading chat info: {:?}", info);
-
-        let mut chat = self.chat_joined(
-            connection,
-            &info.as_partial(),
-            &ChatInfoVersionHandler::DoNothing,
-        );
-
         match connection.get_account().find_chat_conversation(&info.sn) {
             Some(mut conversation) => {
-                let mut node = chat.as_blist_node();
-                info.write_version_info(&mut node);
-
                 let mut chat_conversation = conversation.get_chat_data().unwrap();
                 unsafe { conversation.set_data(conv_data::CHAT_INFO, info.clone()) };
                 chat_conversation.clear_users();

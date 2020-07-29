@@ -7,7 +7,7 @@ use super::client::try_result::TryResult;
 use super::protocol;
 use crate::messages::{AccountInfo, FdSender, SystemMessage};
 use crate::MsgInfo;
-use crate::{ChatInfoVersionHandler, PartialChatInfo};
+use crate::PartialChatInfo;
 use futures::future;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -128,13 +128,9 @@ pub async fn process_event_buddy_list(
                         group: Some(group.name.clone()),
                     };
                     tx.handle_proxy(&account_info.handle)
-                        .exec(move |plugin, protocol_data| {
+                        .exec_no_return(move |plugin, protocol_data| {
                             let connection = &mut protocol_data.connection;
-                            plugin.chat_joined(
-                                connection,
-                                &chat_info,
-                                &ChatInfoVersionHandler::DoNothing,
-                            );
+                            plugin.chat_joined(connection, &chat_info);
                         })
                         .await;
                 }
@@ -191,13 +187,12 @@ pub async fn process_event_hist_dlg_state(
         title: chat_friendly,
         ..Default::default()
     };
-    let info_version =
-        ChatInfoVersionHandler::Check(event_data.mchat_state.clone().map(Into::into));
+    let info_version = event_data.mchat_state.clone().map(Into::into);
 
     tx.handle_proxy(&account_info.handle)
-        .exec(move |plugin, protocol_data| {
+        .exec_no_return(move |plugin, protocol_data| {
             let connection = &mut protocol_data.connection;
-            plugin.chat_joined(connection, &chat_info, &info_version);
+            plugin.chat_joined(connection, &chat_info);
         })
         .await;
 
@@ -234,12 +229,21 @@ pub async fn process_event_hist_dlg_state(
         };
 
         tx.handle_proxy(&account_info.handle)
-            .exec(move |plugin, protocol_data| {
+            .exec_no_return(move |plugin, protocol_data| {
                 let connection = &mut protocol_data.connection;
                 plugin.serv_got_chat_in(connection, chat_input);
             })
             .await;
     }
+
+    tx.handle_proxy(&account_info.handle)
+        .exec_no_return(move |plugin, protocol_data| {
+            let connection = &mut protocol_data.connection;
+            if let Some(ref info_version) = info_version {
+                plugin.check_chat_info(connection, &chat_sn, info_version);
+            }
+        })
+        .await;
 }
 
 // Clippy false positive, lifetimes are required for this code to compile.
