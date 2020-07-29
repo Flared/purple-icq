@@ -14,11 +14,11 @@ impl<T> Connections<T> {
         }
     }
 
-    pub unsafe fn add(&mut self, connection: &mut Connection, data: T) {
+    pub unsafe fn add(&mut self, connection: Connection, data: T) {
         let account = connection.get_account();
         let data_ptr = Box::new(ProtocolData::<T> {
             account,
-            connection: connection.clone(),
+            connection,
             data,
         });
         let data_raw_ptr = Box::into_raw(data_ptr);
@@ -26,7 +26,7 @@ impl<T> Connections<T> {
         self.protocol_datas.insert(data_raw_ptr);
     }
 
-    pub fn remove(&mut self, connection: &mut Connection) {
+    pub fn remove(&mut self, connection: Connection) {
         let protocol_data_ptr = connection.get_protocol_data() as *mut ProtocolData<T>;
         self.protocol_datas.remove(&protocol_data_ptr);
         // Retake ownership of the protocol data to drop its data.

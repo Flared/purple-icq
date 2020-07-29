@@ -134,4 +134,5 @@ impl_extra_handler_builder! {
     get_chat_name => GetChatNameHandler
     send_im => SendIMHandler
     chat_send => ChatSendHandler
+    get_cb_alias => GetChatBuddyAlias
 }

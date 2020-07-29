@@ -43,6 +43,33 @@ pub extern "C" fn login<P: traits::LoginHandler>(account_ptr: *mut purple_sys::P
     };
 }
 
+pub extern "C" fn get_cb_alias<P: traits::GetChatBuddyAlias>(
+    connection_ptr: *mut purple_sys::PurpleConnection,
+    id: i32,
+    c_who: *const c_char,
+) -> *mut c_char {
+    match catch_unwind(|| {
+        debug!("get_cb_alias");
+        let mut connection = unsafe { Connection::from_raw(connection_ptr).unwrap() };
+        let mut plugin = connection
+            .get_protocol_plugin()
+            .expect("No plugin found for connection");
+        let prpl_plugin = unsafe { plugin.extra::<P>() };
+        let who = unsafe { CStr::from_ptr(c_who).to_str().unwrap() };
+        prpl_plugin
+            .get_cb_alias(&mut connection, id, who)
+            .as_ref()
+            .map(ToGlibPtr::to_glib_full)
+            .unwrap_or_else(std::ptr::null_mut)
+    }) {
+        Ok(r) => r,
+        Err(error) => {
+            error!("Failure in get_cb_alias: {:?}", error);
+            std::ptr::null_mut()
+        }
+    }
+}
+
 pub extern "C" fn chat_info<P: traits::ChatInfoHandler>(
     connection_ptr: *mut purple_sys::PurpleConnection,
 ) -> *mut glib_sys::GList {

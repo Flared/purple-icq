@@ -1,11 +1,11 @@
 use super::poller;
 use super::protocol;
 use crate::messages::{
-    AccountInfo, FdSender, ICQSystemHandle, JoinChatMessage, PurpleMessage, SendMsgMessage,
-    SystemMessage,
+    AccountInfo, FdSender, GetChatInfoMessage, ICQSystemHandle, JoinChatMessage, PurpleMessage,
+    SendMsgMessage, SystemMessage,
 };
-use crate::Handle;
-use crate::{purple, ChatInfo};
+use crate::purple;
+use crate::{ChatInfo, ChatInfoVersionHandler, Handle};
 use async_std::sync::{channel, Receiver};
 
 const CHANNEL_CAPACITY: usize = 1024;
@@ -57,6 +57,7 @@ impl ICQSystem {
                 PurpleMessage::Login(account_info) => self.login(account_info).await,
                 PurpleMessage::JoinChat(m) => self.join_chat(m).await,
                 PurpleMessage::SendMsg(m) => self.send_msg(m).await,
+                PurpleMessage::GetChatInfo(m) => self.get_chat_info(m).await,
             };
             if let Err(error) = result {
                 log::error!("Error handling message: {}", error);
@@ -177,6 +178,25 @@ impl ICQSystem {
         code
     }
 
+    async fn get_chat_info(&mut self, message: GetChatInfoMessage) -> Result<(), String> {
+        log::info!("Get chat info sn: {}", message.message_data.sn);
+        let session = { message.protocol_data.session.read().await.clone().unwrap() };
+        let chat_info_response = protocol::get_chat_info_by_sn(&session, &message.message_data.sn)
+            .await
+            .map_err(|e| format!("Failed to get chat info: {:?}", e))?;
+
+        self.tx
+            .handle_proxy(&message.handle)
+            .exec(move |plugin, protocol_data| {
+                let chat_info = ChatInfo::from(chat_info_response);
+                let connection = &mut protocol_data.connection;
+                plugin.load_chat_info(connection, &chat_info);
+            })
+            .await;
+
+        Ok(())
+    }
+
     async fn join_chat(&mut self, message: JoinChatMessage) -> Result<(), String> {
         log::info!("Joining stamp: {}", message.message_data.stamp);
         let session = { message.protocol_data.session.read().await.clone().unwrap() };
@@ -191,22 +211,23 @@ impl ICQSystem {
         protocol::join_chat(&session, &stamp)
             .await
             .map_err(|e| format!("Failed to join chat: {:?}", e))?;
-        let chat_info = protocol::get_chat_info(&session, &stamp)
+        let chat_info_response = protocol::get_chat_info(&session, &stamp)
             .await
             .map_err(|e| format!("Failed to get chat info: {:?}", e))?;
 
         self.tx
             .handle_proxy(&message.handle)
             .exec(move |plugin, protocol_data| {
+                let chat_info = ChatInfo::from(chat_info_response);
+                let partial_info = chat_info.as_partial();
                 let connection = &mut protocol_data.connection;
-                let chat_info = ChatInfo {
-                    sn: chat_info.sn,
-                    stamp: Some(stamp.clone()),
-                    title: chat_info.name,
-                    group: None,
-                };
-                plugin.chat_joined(connection, &chat_info);
-                plugin.conversation_joined(connection, &chat_info);
+                plugin.chat_joined(
+                    connection,
+                    &partial_info,
+                    &ChatInfoVersionHandler::DoNothing,
+                );
+                plugin.conversation_joined(connection, &partial_info);
+                plugin.load_chat_info(connection, &chat_info);
             })
             .await;
 
