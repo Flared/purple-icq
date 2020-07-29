@@ -297,8 +297,8 @@ fn format_file_info(file_info: &client::FilesInfoResponseData) -> String {
         href = htmlescape::encode_attribute(&info.dlink),
         md5 = htmlescape::encode_attribute(&info.md5),
         mime = htmlescape::encode_attribute(&info.mime),
-        pretty_mime = htmlescape::encode_attribute(&pretty_mime),
-        name = htmlescape::encode_attribute(&info.file_name),
+        pretty_mime = htmlescape::encode_minimal(&pretty_mime),
+        name = htmlescape::encode_minimal(&info.file_name),
         size = info.file_size,
         pretty_size = pretty_size(info.file_size)
     )
