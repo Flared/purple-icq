@@ -96,15 +96,24 @@ pub struct GetChatInfoMessageData {
     pub sn: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct GetHistoryMessageData {
+    pub sn: String,
+    pub from_msg_id: String,
+    pub count: i32,
+}
+
 #[derive(Debug)]
 pub enum PurpleMessage {
     Login(AccountInfo),
     JoinChat(JoinChatMessage),
     SendMsg(SendMsgMessage),
     GetChatInfo(GetChatInfoMessage),
+    GetHistory(GetHistoryMessage),
 }
 
 pub type JoinChatMessage = PurpleMessageWithHandle<JoinChatMessageData>;
+pub type GetHistoryMessage = PurpleMessageWithHandle<GetHistoryMessageData>;
 pub type SendMsgMessage = PurpleMessageWithHandle<SendMsgMessageData>;
 pub type GetChatInfoMessage = PurpleMessageWithHandle<GetChatInfoMessageData>;
 
@@ -114,6 +123,24 @@ impl PurpleMessage {
             handle,
             protocol_data,
             message_data: JoinChatMessageData { stamp },
+        })
+    }
+
+    pub fn fetch_history(
+        handle: Handle,
+        protocol_data: AccountDataBox,
+        sn: String,
+        from_msg_id: String,
+        count: i32,
+    ) -> Self {
+        Self::GetHistory(GetHistoryMessage {
+            handle,
+            protocol_data,
+            message_data: GetHistoryMessageData {
+                sn,
+                from_msg_id,
+                count,
+            },
         })
     }
 

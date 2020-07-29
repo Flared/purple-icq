@@ -230,7 +230,7 @@ pub struct HistDlgStateMessage {
     //     'mediaType': 'text'
     // }
     //
-    //pub msg_id: String,
+    pub msg_id: String,
     pub time: i64,
     //pub locale: String,
     pub text: Option<String>,
