@@ -1,3 +1,4 @@
+use super::client;
 use super::client::events;
 use super::client::events::Event;
 use super::client::events::EventData;
@@ -7,8 +8,13 @@ use super::protocol;
 use crate::messages::{AccountInfo, FdSender, SystemMessage};
 use crate::ChatInfo;
 use crate::MsgInfo;
+use futures::future;
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::Ordering;
 use std::time::Duration;
+
+static FILES_URL_PREFIX: &str = "https://files.icq.net/get/";
 
 pub async fn fetch_events_loop(mut tx: FdSender<SystemMessage>, account_info: AccountInfo) {
     let mut fetch_base_url = {
@@ -162,6 +168,17 @@ pub async fn process_event_hist_dlg_state(
     account_info: &AccountInfo,
     event_data: &events::HistDlgStateData,
 ) {
+    let session = {
+        account_info
+            .protocol_data
+            .session
+            .read()
+            .await
+            .as_ref()
+            .unwrap()
+            .clone()
+    };
+
     // Create the chat if necessary
     let chat_sn = event_data.sn.clone();
     let chat_friendly = find_author_friendly(&chat_sn, &event_data.persons).to_string();
@@ -197,11 +214,14 @@ pub async fn process_event_hist_dlg_state(
         };
         let author_friendly = find_author_friendly(&author_sn, &event_data.persons).to_string();
 
+        let message_text = htmlescape::encode_minimal(&message.text);
+        let message_text = process_message_files(Cow::from(&message_text), &session).await;
+
         let chat_input = MsgInfo {
             chat_sn: chat_sn.clone(),
             author_sn,
             author_friendly,
-            text: message.text.clone(),
+            text: message_text.into_owned(),
             time: message.time,
         };
 
@@ -211,5 +231,84 @@ pub async fn process_event_hist_dlg_state(
                 plugin.serv_got_chat_in(connection, chat_input);
             })
             .await;
+    }
+}
+
+// Clippy false positive, lifetimes are required for this code to compile.
+#[allow(clippy::needless_lifetimes)]
+async fn process_message_files<'a>(
+    mut message: Cow<'a, str>,
+    session: &protocol::SessionInfo,
+) -> Cow<'a, str> {
+    // Extract files URL from message.
+    let message_files = message
+        .match_indices(FILES_URL_PREFIX)
+        .map(|(index, _)| {
+            let id_starts_at = index + FILES_URL_PREFIX.len();
+            let id_ends_at = message[id_starts_at..]
+                .find(' ')
+                .map(|i| id_starts_at + i)
+                .unwrap_or_else(|| message.len());
+            log::info!("{}..{}..{}", index, id_starts_at, id_ends_at);
+            let file_id = message[id_starts_at..id_ends_at].to_string();
+            (index..id_ends_at, file_id)
+        })
+        .collect::<Vec<_>>();
+
+    // Fetch all files info through ICQ API.
+    let files_info_futures = message_files
+        .iter()
+        .map(|(_, file_id)| file_id.to_string())
+        .collect::<HashSet<String>>()
+        .into_iter()
+        .map(|file_id| fetch_file_info(session, file_id));
+
+    let files_info = future::join_all(files_info_futures)
+        .await
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+
+    // Replace message files reference with valid link.
+    for (range, file_id) in message_files.into_iter().rev() {
+        if let Ok(file_info) = files_info.get(&file_id).unwrap() {
+            let file_html = format_file_info(file_info);
+            message.to_mut().replace_range(range, &file_html);
+        }
+    }
+
+    message
+}
+
+async fn fetch_file_info(
+    session: &protocol::SessionInfo,
+    file_id: String,
+) -> (String, protocol::Result<client::FilesInfoResponseData>) {
+    (
+        file_id.clone(),
+        protocol::files_info(session, &file_id).await,
+    )
+}
+
+fn format_file_info(file_info: &client::FilesInfoResponseData) -> String {
+    let info = &file_info.info;
+    let pretty_mime = info.mime.rsplit('/').next().unwrap();
+    format!(
+        "<a href=\"{href}\" class=\"file\" data-mime=\"{mime}\" data-md5=\"md5\" data-filesize=\"{size}\">{name} [{pretty_mime} {pretty_size}]</a>",
+        href = info.dlink,
+        name = info.file_name,
+        mime = info.mime,
+        pretty_mime = pretty_mime,
+        size = info.file_size,
+        pretty_size = pretty_size(info.file_size)
+    )
+}
+
+fn pretty_size(size: usize) -> String {
+    if size < 100_000 {
+        (size / 1000).to_string() + "kb"
+    } else if size < 1_000_000_000 {
+        (size / 1_000_000).to_string() + "mb"
+    } else {
+        (size / 1_000_000_000).to_string() + "gb"
     }
 }

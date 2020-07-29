@@ -176,7 +176,7 @@ pub extern "C" fn get_chat_name<P: traits::GetChatNameHandler>(
     data: *mut glib_sys::GHashTable,
 ) -> *mut c_char {
     match catch_unwind(|| {
-        debug!("close");
+        debug!("get_chat_name");
         let mut data = unsafe { StrHashTable::from_ptr(data) };
         let name = P::get_chat_name(data.as_mut());
         name.to_glib_full()

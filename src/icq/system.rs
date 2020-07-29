@@ -138,7 +138,7 @@ impl ICQSystem {
                         .set_state(purple::PurpleConnectionState::PURPLE_CONNECTED)
                         .await;
                     (*account_info.protocol_data.session.write().await) = Some(session);
-                    async_std::task::spawn(poller::fetch_events_loop(
+                    async_std::task::spawn_local(poller::fetch_events_loop(
                         self.tx.clone(),
                         account_info.clone(),
                     ));
