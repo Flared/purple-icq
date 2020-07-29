@@ -27,7 +27,7 @@ jobs:
                                      libsqlite3-dev libidn11-dev \
           && hg clone https://keep.imfreedom.org/pidgin/pidgin \
           && cd pidgin \
-          && hg up v2.13.0 \
+          && hg up v2.14.0 \
           && ./autogen.sh \
                   --prefix=/usr \
                   --disable-nm \
