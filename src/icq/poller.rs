@@ -293,12 +293,13 @@ fn format_file_info(file_info: &client::FilesInfoResponseData) -> String {
     let info = &file_info.info;
     let pretty_mime = info.mime.rsplit('/').next().unwrap();
     format!(
-        "<a href=\"{href}\" class=\"file\" data-mime=\"{mime}\" data-md5=\"md5\" data-filesize=\"{size}\">{name} [{pretty_mime} {pretty_size}]</a>",
+        "<a href=\"{href}\" class=\"file\" data-mime=\"{mime}\" data-md5=\"{md5}\" data-filesize=\"{size}\">{name} [{pretty_mime} {pretty_size}]</a>",
         href = info.dlink,
-        name = info.file_name,
+        md5 = info.md5,
         mime = info.mime,
-        pretty_mime = pretty_mime,
+        name = info.file_name,
         size = info.file_size,
+        pretty_mime = pretty_mime,
         pretty_size = pretty_size(info.file_size)
     )
 }
