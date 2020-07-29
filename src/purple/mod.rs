@@ -14,12 +14,17 @@ use glib::translate::FromGlibPtrContainer;
 pub use purple_sys;
 pub use purple_sys::{
     PurpleCmdId, PurpleCmdRet, PurpleConnectionError, PurpleConnectionState,
-    PurpleConvChatBuddyFlags, PurpleConversationType, PurpleInputCondition, PurpleMessageFlags,
+    PurpleConvChatBuddyFlags, PurpleConversationType, PurpleDebugLevel, PurpleInputCondition,
+    PurpleMessageFlags,
 };
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 use std::panic::catch_unwind;
 use std::ptr;
+
+lazy_static::lazy_static! {
+    static ref STR_FORMAT: CString = CString::new("%s").unwrap();
+}
 
 pub mod account;
 mod blist;
@@ -129,4 +134,17 @@ where
             .collect::<Vec<&str>>()
             .as_slice(),
     )
+}
+
+pub fn debug(level: PurpleDebugLevel, target: &str, message: &str) {
+    let c_target = CString::new(target).unwrap();
+    let c_message = CString::new(message).unwrap();
+    unsafe {
+        purple_sys::purple_debug(
+            level,
+            c_target.as_ptr(),
+            STR_FORMAT.as_ptr(),
+            c_message.as_ptr(),
+        )
+    }
 }

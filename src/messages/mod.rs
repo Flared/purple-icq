@@ -27,6 +27,12 @@ impl<T> FdSender<T> {
         use std::io::Write;
         self.os_sender.write_all(&[0]).unwrap();
     }
+
+    pub fn try_send(&mut self, item: T) {
+        self.channel_sender.try_send(item).unwrap();
+        use std::io::Write;
+        self.os_sender.write_all(&[0]).unwrap();
+    }
 }
 
 impl FdSender<SystemMessage> {
@@ -146,6 +152,7 @@ pub enum SystemMessage {
         handle: Handle,
         function: Box<dyn FnOnce(&mut PurpleICQ, &mut ProtocolData) + Send + 'static>,
     },
+    FlushLogs,
 }
 
 pub struct ICQSystemHandle {
