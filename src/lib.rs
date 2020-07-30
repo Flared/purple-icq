@@ -11,6 +11,7 @@ mod icq;
 #[macro_use]
 mod purple;
 mod chat_info;
+pub mod logging;
 mod messages;
 
 pub mod status {
@@ -77,7 +78,7 @@ impl purple::PrplPlugin for PurpleICQ {
     type Plugin = Self;
 
     fn new() -> Self {
-        env_logger::init();
+        logging::init(log::LevelFilter::Debug).expect("Failed to initialize logging");
         let system = icq::system::spawn();
         Self {
             system,
@@ -176,6 +177,7 @@ impl purple::StatusTypeHandler for PurpleICQ {
 }
 impl purple::LoadHandler for PurpleICQ {
     fn load(&mut self, _plugin: &purple::Plugin) -> bool {
+        logging::set_thread_logger(logging::PurpleDebugLogger);
         use std::os::unix::io::AsRawFd;
         self.input_handle = Some(self.enable_input(
             self.system.input_rx.as_raw_fd(),
@@ -443,6 +445,7 @@ impl PurpleICQ {
                         None
                     });
             }
+            SystemMessage::FlushLogs => logging::flush(),
         }
     }
 

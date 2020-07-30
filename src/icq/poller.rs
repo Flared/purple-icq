@@ -5,6 +5,7 @@ use super::client::events::EventData;
 use super::client::try_result;
 use super::client::try_result::TryResult;
 use super::protocol;
+use crate::logging;
 use crate::messages::{AccountInfo, FdSender, SystemMessage};
 use crate::MsgInfo;
 use crate::PartialChatInfo;
@@ -58,6 +59,7 @@ pub async fn fetch_events_loop(mut tx: FdSender<SystemMessage>, account_info: Ac
                 fetch_base_url = fetch_events_response_data.fetch_base_url;
             }
         }
+        logging::flush();
     }
 }
 

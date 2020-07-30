@@ -1,5 +1,6 @@
 use super::poller;
 use super::protocol;
+use crate::logging;
 use crate::messages::{
     AccountInfo, FdSender, GetChatInfoMessage, ICQSystemHandle, JoinChatMessage, PurpleMessage,
     SendMsgMessage, SystemMessage,
@@ -28,6 +29,7 @@ pub fn spawn() -> ICQSystemHandle {
 }
 
 pub fn run(tx: FdSender<SystemMessage>, rx: Receiver<PurpleMessage>) {
+    logging::set_thread_logger(logging::RemoteLogger(tx.clone()));
     log::info!("Starting ICQ");
     let mut system = ICQSystem::new(tx, rx);
     async_std::task::block_on(system.run());
@@ -62,6 +64,7 @@ impl ICQSystem {
             if let Err(error) = result {
                 log::error!("Error handling message: {}", error);
             }
+            logging::flush();
         }
     }
 
