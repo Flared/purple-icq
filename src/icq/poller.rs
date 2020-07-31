@@ -5,8 +5,10 @@ use super::client::events::EventData;
 use super::client::try_result;
 use super::client::try_result::TryResult;
 use super::protocol;
+use crate::icq::protocol::SessionInfo;
 use crate::logging;
 use crate::messages::{AccountInfo, FdSender, SystemMessage};
+use crate::Handle;
 use crate::MsgInfo;
 use crate::PartialChatInfo;
 use futures::future;
@@ -150,7 +152,7 @@ pub async fn process_event_my_info(_event_data: &events::MyInfoData) {
     // purple_notify_userinfo
 }
 
-fn find_author_friendly<'a>(
+pub fn find_author_friendly<'a>(
     author_sn: &'a str,
     persons: &'a [events::HistDlgStatePerson],
 ) -> &'a str {
@@ -165,7 +167,7 @@ fn find_author_friendly<'a>(
 }
 
 pub async fn process_event_hist_dlg_state(
-    mut tx: FdSender<SystemMessage>,
+    tx: FdSender<SystemMessage>,
     account_info: &AccountInfo,
     event_data: &events::HistDlgStateData,
 ) {
@@ -180,18 +182,39 @@ pub async fn process_event_hist_dlg_state(
             .clone()
     };
 
+    process_hist_dlg_state_messages(
+        tx,
+        session,
+        account_info.handle.clone(),
+        &event_data.sn,
+        &event_data.persons,
+        event_data.mchat_state.as_ref(),
+        &event_data.messages,
+    )
+    .await;
+}
+
+pub async fn process_hist_dlg_state_messages(
+    mut tx: FdSender<SystemMessage>,
+    session: SessionInfo,
+    handle: Handle,
+    event_sn: &str,
+    event_persons: &[events::HistDlgStatePerson],
+    event_mchat_state: Option<&events::HistDlgStateMChatState>,
+    hist_dlg_state_messages: &[events::HistDlgStateMessage],
+) {
     // Create the chat if necessary
-    let chat_sn = event_data.sn.clone();
-    let chat_friendly = find_author_friendly(&chat_sn, &event_data.persons).to_string();
+    let chat_sn = event_sn.to_string();
+    let chat_friendly = find_author_friendly(&chat_sn, event_persons).to_string();
 
     let chat_info = PartialChatInfo {
         sn: chat_sn.clone(),
         title: chat_friendly,
         ..Default::default()
     };
-    let info_version = event_data.mchat_state.clone().map(Into::into);
+    let info_version = event_mchat_state.cloned().map(Into::into);
 
-    tx.handle_proxy(&account_info.handle)
+    tx.handle_proxy(&handle)
         .exec_no_return(move |plugin, protocol_data| {
             let connection = &mut protocol_data.connection;
             plugin.chat_joined(connection, &chat_info);
@@ -199,7 +222,7 @@ pub async fn process_event_hist_dlg_state(
         .await;
 
     // Create Chat Entries
-    for message in &event_data.messages {
+    for message in hist_dlg_state_messages {
         let message_text = match message.text.as_ref() {
             Some(m) => m,
             None => continue,
@@ -214,10 +237,10 @@ pub async fn process_event_hist_dlg_state(
         let author_sn = {
             match &message.chat {
                 Some(chat) => chat.sender.clone(),
-                None => event_data.sn.clone(),
+                None => event_sn.to_string(),
             }
         };
-        let author_friendly = find_author_friendly(&author_sn, &event_data.persons).to_string();
+        let author_friendly = find_author_friendly(&author_sn, event_persons).to_string();
 
         let message_text = htmlescape::encode_minimal(&message_text);
         let message_text = process_message_files(Cow::from(&message_text), &session).await;
@@ -228,9 +251,10 @@ pub async fn process_event_hist_dlg_state(
             author_friendly,
             text: message_text.into_owned(),
             time: message.time,
+            message_id: message.msg_id.clone(),
         };
 
-        tx.handle_proxy(&account_info.handle)
+        tx.handle_proxy(&handle)
             .exec_no_return(move |plugin, protocol_data| {
                 let connection = &mut protocol_data.connection;
                 plugin.serv_got_chat_in(connection, chat_input);
@@ -238,7 +262,7 @@ pub async fn process_event_hist_dlg_state(
             .await;
     }
 
-    tx.handle_proxy(&account_info.handle)
+    tx.handle_proxy(&handle)
         .exec_no_return(move |plugin, protocol_data| {
             let connection = &mut protocol_data.connection;
             if let Some(ref info_version) = info_version {
@@ -250,7 +274,7 @@ pub async fn process_event_hist_dlg_state(
 
 // Clippy false positive, lifetimes are required for this code to compile.
 #[allow(clippy::needless_lifetimes)]
-async fn process_message_files<'a>(
+pub async fn process_message_files<'a>(
     mut message: Cow<'a, str>,
     session: &protocol::SessionInfo,
 ) -> Cow<'a, str> {

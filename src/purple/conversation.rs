@@ -17,6 +17,12 @@ impl Conversation {
         unsafe { Self::from_ptr(purple_sys::purple_find_chat(connection.as_mut_ptr(), id)) }
     }
 
+    pub fn find_by_name(connection: &mut Connection, name: &str) -> Option<Self> {
+        let c_name = CString::new(name).unwrap();
+        let sn_hash = unsafe { glib_sys::g_str_hash(c_name.as_ptr() as *mut c_void) };
+        Self::find(connection, sn_hash as i32)
+    }
+
     pub fn set_title(&mut self, title: &str) {
         unsafe {
             let c_title = CString::new(title).unwrap();
@@ -27,6 +33,17 @@ impl Conversation {
     pub fn get_title(&mut self) -> Option<&str> {
         unsafe {
             let c_value = purple_sys::purple_conversation_get_title(self.as_mut_ptr());
+            NonNull::new(c_value as *mut c_char).map(|p| {
+                CStr::from_ptr(p.as_ptr() as *const c_char)
+                    .to_str()
+                    .unwrap()
+            })
+        }
+    }
+
+    pub fn get_name(&mut self) -> Option<&str> {
+        unsafe {
+            let c_value = purple_sys::purple_conversation_get_name(self.as_mut_ptr());
             NonNull::new(c_value as *mut c_char).map(|p| {
                 CStr::from_ptr(p.as_ptr() as *const c_char)
                     .to_str()

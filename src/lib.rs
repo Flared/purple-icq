@@ -3,8 +3,10 @@ use chat_info::{ChatInfo, ChatInfoVersion, PartialChatInfo};
 use lazy_static::lazy_static;
 use messages::{AccountInfo, ICQSystemHandle, PurpleMessage, SystemMessage};
 use purple::*;
+use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 use std::io::Read;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 mod icq;
@@ -33,12 +35,28 @@ mod blist_node {
     pub const LAST_SEEN_TIMESTAMP: &str = "last_seen_timestamp";
 }
 
+mod commands {
+    pub const HISTORY: &str = "history";
+}
+
 pub mod chat_states {
     pub const JOINED: &str = "joined";
 }
 
 pub mod conv_data {
+    use super::HistoryInfo;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
     pub const CHAT_INFO: &str = "chat_info";
+    pub const HISTORY_INFO: &str = "history_info";
+    pub type HistoryInfoType = Rc<RefCell<HistoryInfo>>;
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct HistoryInfo {
+    pub oldest_message_id: Option<String>,
+    pub oldest_message_timestamp: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +66,7 @@ pub struct MsgInfo {
     pub author_friendly: String,
     pub text: String,
     pub time: i64,
+    pub message_id: String,
 }
 
 #[derive(Debug, Default)]
@@ -185,7 +204,7 @@ impl purple::LoadHandler for PurpleICQ {
         ));
 
         self.history_command_handle =
-            Some(self.enable_command("history", "w", "history &lt;timestamp&gt;"));
+            Some(self.enable_command(commands::HISTORY, "w", "history &lt;count&gt;"));
         true
     }
 }
@@ -405,17 +424,93 @@ impl purple::CommandHandler for PurpleICQ {
         command: &str,
         args: &[&str],
     ) -> PurpleCmdRet {
-        log::error!(
-            "cmd_func: conv={} cmd={} args={:?}",
+        log::debug!(
+            "command: conv={} cmd={} args={:?}",
             conversation.get_title().unwrap_or("unknown"),
             command,
             args
         );
-        PurpleCmdRet::PURPLE_CMD_RET_OK
+        match command {
+            commands::HISTORY => self.command_history(conversation, args),
+            _ => {
+                log::error!("Unknown command: {}", command);
+                PurpleCmdRet::PURPLE_CMD_RET_FAILED
+            }
+        }
     }
 }
 
 impl PurpleICQ {
+    fn command_history(&mut self, conversation: &mut Conversation, args: &[&str]) -> PurpleCmdRet {
+        log::debug!("command_history");
+
+        if args.len() != 1 {
+            log::error!(
+                "command_history: Unsupported number of args. Got {}",
+                args.len()
+            );
+            return PurpleCmdRet::PURPLE_CMD_RET_FAILED;
+        }
+        let count = {
+            let input = match args[0].parse::<u32>() {
+                Ok(count) => count,
+                Err(_) => {
+                    log::error!("command_history: Could not parse count: {}", args[0]);
+                    return PurpleCmdRet::PURPLE_CMD_RET_FAILED;
+                }
+            };
+            0 - input as i32
+        };
+
+        let sn = match conversation.get_name() {
+            Some(name) => name.to_string(),
+            None => {
+                log::error!("command_history: SN not found");
+                return PurpleCmdRet::PURPLE_CMD_RET_FAILED;
+            }
+        };
+
+        let from_msg_id = {
+            match unsafe {
+                conversation.get_data::<conv_data::HistoryInfoType>(conv_data::HISTORY_INFO)
+            } {
+                Some(history_info) => {
+                    let history_info = history_info.borrow_mut();
+                    match &history_info.oldest_message_id {
+                        Some(oldest_message_id) => oldest_message_id.clone(),
+                        None => {
+                            return PurpleCmdRet::PURPLE_CMD_RET_FAILED;
+                        }
+                    }
+                }
+                None => {
+                    log::error!("command_history: Can't find message id");
+                    return PurpleCmdRet::PURPLE_CMD_RET_FAILED;
+                }
+            }
+        };
+
+        let handle = Handle::from(&mut conversation.get_connection());
+
+        let protocol_data = self
+            .connections
+            .get(&handle)
+            .expect("Tried joining chat on closed connection");
+
+        self.system
+            .tx
+            .try_send(PurpleMessage::fetch_history(
+                handle,
+                protocol_data.data.clone(),
+                sn,
+                from_msg_id,
+                count,
+            ))
+            .unwrap();
+
+        PurpleCmdRet::PURPLE_CMD_RET_OK
+    }
+
     fn process_message(&mut self, message: SystemMessage) {
         match message {
             SystemMessage::ExecAccount { handle, function } => {
@@ -452,22 +547,75 @@ impl PurpleICQ {
     pub fn serv_got_chat_in(&mut self, connection: &mut Connection, msg_info: MsgInfo) {
         match purple::Chat::find(&mut connection.get_account(), &msg_info.chat_sn) {
             Some(mut chat) => {
+                // Get the chat and the last seen timestamp.
                 let mut node = chat.as_blist_node();
                 let last_timestamp: i64 = node
                     .get_string(&blist_node::LAST_SEEN_TIMESTAMP)
                     .and_then(|t| t.parse::<i64>().ok())
                     .unwrap_or(0);
                 let new_timestamp = msg_info.time;
-                if new_timestamp > last_timestamp {
-                    node.set_string(&blist_node::LAST_SEEN_TIMESTAMP, &new_timestamp.to_string());
-                    self.conversation_joined(
-                        connection,
-                        &PartialChatInfo {
-                            sn: msg_info.chat_sn.clone(),
-                            title: msg_info.author_friendly.clone(),
-                            ..Default::default()
-                        },
-                    );
+
+                // Only trigger conversation_joined if this is a new message.
+                let conversation = {
+                    if new_timestamp > last_timestamp {
+                        node.set_string(
+                            &blist_node::LAST_SEEN_TIMESTAMP,
+                            &new_timestamp.to_string(),
+                        );
+                        Some(self.conversation_joined(
+                            connection,
+                            &PartialChatInfo {
+                                sn: msg_info.chat_sn.clone(),
+                                title: msg_info.author_friendly.clone(),
+                                ..Default::default()
+                            },
+                        ))
+                    } else {
+                        None
+                    }
+                };
+
+                // Get the conversation and set the oldest *displayed* messageId.
+                // This is the oldest message that the user can see in the chat window.
+                //
+                // If there is no conversation yet, that is okay. It means that we haven't
+                // seen new messages yet.
+                if let Some(mut conversation) = conversation {
+                    let history_info = {
+                        match unsafe {
+                            conversation
+                                .get_data::<conv_data::HistoryInfoType>(conv_data::HISTORY_INFO)
+                        } {
+                            Some(history_info) => history_info.clone(),
+                            None => {
+                                let history_info = Rc::new(RefCell::new(HistoryInfo {
+                                    oldest_message_id: None,
+                                    oldest_message_timestamp: None,
+                                }));
+                                unsafe {
+                                    conversation.set_data::<conv_data::HistoryInfoType>(
+                                        conv_data::HISTORY_INFO,
+                                        history_info.clone(),
+                                    )
+                                };
+                                history_info
+                            }
+                        }
+                    };
+                    let mut history_info = history_info.borrow_mut();
+
+                    match history_info.oldest_message_timestamp {
+                        None => {
+                            history_info.oldest_message_id = Some(msg_info.message_id.clone());
+                            history_info.oldest_message_timestamp = Some(msg_info.time);
+                        }
+                        Some(existing_timestamp) => {
+                            if msg_info.time < existing_timestamp {
+                                history_info.oldest_message_id = Some(msg_info.message_id.clone());
+                                history_info.oldest_message_timestamp = Some(msg_info.time);
+                            }
+                        }
+                    }
                 }
             }
             None => {
@@ -537,7 +685,11 @@ impl PurpleICQ {
         })
     }
 
-    pub fn conversation_joined(&mut self, connection: &mut Connection, info: &PartialChatInfo) {
+    pub fn conversation_joined(
+        &mut self,
+        connection: &mut Connection,
+        info: &PartialChatInfo,
+    ) -> Conversation {
         match connection.get_account().find_chat_conversation(&info.sn) {
             Some(mut conversation) => {
                 if conversation.get_chat_data().unwrap().has_left() {
@@ -545,10 +697,12 @@ impl PurpleICQ {
                 } else {
                     conversation.present();
                 }
+                conversation
             }
             None => {
                 let mut conversation = connection.serv_got_joined_chat(&info.sn).unwrap();
                 conversation.set_title(&info.title);
+                conversation
             }
         }
     }

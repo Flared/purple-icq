@@ -2,8 +2,8 @@ use super::poller;
 use super::protocol;
 use crate::logging;
 use crate::messages::{
-    AccountInfo, FdSender, GetChatInfoMessage, ICQSystemHandle, JoinChatMessage, PurpleMessage,
-    SendMsgMessage, SystemMessage,
+    AccountInfo, FdSender, GetChatInfoMessage, GetHistoryMessage, ICQSystemHandle, JoinChatMessage,
+    PurpleMessage, SendMsgMessage, SystemMessage,
 };
 use crate::purple;
 use crate::{ChatInfo, Handle};
@@ -60,6 +60,7 @@ impl ICQSystem {
                 PurpleMessage::JoinChat(m) => self.join_chat(m).await,
                 PurpleMessage::SendMsg(m) => self.send_msg(m).await,
                 PurpleMessage::GetChatInfo(m) => self.get_chat_info(m).await,
+                PurpleMessage::GetHistory(m) => self.get_history(m).await,
             };
             if let Err(error) = result {
                 log::error!("Error handling message: {}", error);
@@ -229,6 +230,38 @@ impl ICQSystem {
                 plugin.load_chat_info(connection, &chat_info);
             })
             .await;
+
+        Ok(())
+    }
+
+    async fn get_history(&mut self, get_history_message: GetHistoryMessage) -> Result<(), String> {
+        let session = {
+            get_history_message
+                .protocol_data
+                .session
+                .read()
+                .await
+                .clone()
+                .unwrap()
+        };
+        let sn = &get_history_message.message_data.sn;
+        let from_msg_id = &get_history_message.message_data.from_msg_id;
+        let count = get_history_message.message_data.count;
+
+        let history = protocol::get_history(&session, sn, from_msg_id, count)
+            .await
+            .map_err(|e| format!("Failed to get history: {:?}", e))?;
+
+        super::poller::process_hist_dlg_state_messages(
+            self.tx.clone(),
+            session,
+            get_history_message.handle,
+            sn,
+            &history.persons,
+            None,
+            &history.messages,
+        )
+        .await;
 
         Ok(())
     }

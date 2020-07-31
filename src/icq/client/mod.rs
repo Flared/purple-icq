@@ -10,6 +10,7 @@ const LOGIN_WITH_PHONE_NUMBER_URL: &str =
 const START_SESSION_URL: &str = "https://u.icq.net/api/v14/wim/aim/startSession?";
 const SEND_IM_URL: &str = "https://u.icq.net/api/v14/wim/im/sendIM";
 const GET_CHAT_INFO_URL: &str = "https://u.icq.net/api/v14/rapi/getChatInfo";
+const GET_CHAT_HISTORY_URL: &str = "https://u.icq.net/api/v14/rapi/getHistory";
 const JOIN_CHAT_URL: &str = "https://u.icq.net/api/v14/rapi/joinChat";
 const FILES_INFO_URL: &str = "https://u.icq.net/api/v14/files/info";
 
@@ -294,6 +295,34 @@ pub struct FilesInfoResponseDataInfo {
 
 pub type FilesInfoResponse = ResultResponse<FilesInfoResponseData>;
 
+pub type GetHistoryBody<'a> = RapiBody<'a, GetHistoryBodyParams<'a>>;
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GetHistoryBodyParams<'a> {
+    pub count: i32,
+    pub from_msg_id: &'a str,
+    pub lang: &'a str,
+    pub mentions: GetHistoryBodyParamsMentions,
+    pub patch_version: &'a str,
+    pub sn: &'a str,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GetHistoryBodyParamsMentions {
+    pub resolve: bool,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GetHistoryResponseData {
+    pub messages: Vec<events::HistDlgStateMessage>,
+    pub persons: Vec<events::HistDlgStatePerson>,
+}
+
+pub type GetHistoryResponse = RapiResponse<GetHistoryResponseData>;
+
 pub async fn send_code(body: &SendCodeBody<'_>) -> Result<SendCodeResponse> {
     post_json(SEND_CODE_URL, body).await
 }
@@ -322,6 +351,10 @@ pub async fn fetch_events(fetch_base_url: &str) -> Result<FetchEventsResponse> {
 
 pub async fn get_chat_info(body: &GetChatInfoBody<'_>) -> Result<GetChatInfoResponse> {
     post_json(GET_CHAT_INFO_URL, body).await
+}
+
+pub async fn get_history(body: &GetHistoryBody<'_>) -> Result<GetHistoryResponse> {
+    post_json(GET_CHAT_HISTORY_URL, body).await
 }
 
 pub async fn join_chat(body: &JoinChatBody<'_>) -> Result<JoinChatResponse> {

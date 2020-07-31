@@ -154,6 +154,30 @@ pub async fn get_chat_info_by_sn(session: &SessionInfo, sn: &str) -> Result<Chat
         .map(|r| r.results)
 }
 
+pub async fn get_history(
+    session: &SessionInfo,
+    chat_sn: &str,
+    from_msg_id: &str,
+    count: i32,
+) -> Result<client::GetHistoryResponseData> {
+    let get_history_body = client::GetHistoryBody {
+        aimsid: &session.aim_sid,
+        req_id: &request_id(),
+        params: client::GetHistoryBodyParams {
+            count,
+            from_msg_id,
+            lang: "en",
+            mentions: client::GetHistoryBodyParamsMentions { resolve: false },
+            patch_version: "1",
+            sn: chat_sn,
+        },
+    };
+    client::get_history(&get_history_body)
+        .await
+        .map_err(Error::ApiError)
+        .map(|r| r.results)
+}
+
 pub async fn get_chat_info(session: &SessionInfo, stamp: &str) -> Result<ChatInfo> {
     let get_chat_info_body = client::GetChatInfoBody {
         aimsid: &session.aim_sid,
