@@ -211,6 +211,7 @@ pub struct GetChatInfoResponseData {
     pub members_version: String,
     pub info_version: String,
     pub sn: String,
+    pub about: Option<String>,
     //pub abuse_reports_current_count: usize,
     pub members: Vec<ChatInfoResponseMember>,
 }

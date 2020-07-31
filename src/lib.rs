@@ -748,9 +748,14 @@ impl PurpleICQ {
             Some(mut conversation) => {
                 let mut chat_conversation = conversation.get_chat_data().unwrap();
                 unsafe { conversation.set_data(conv_data::CHAT_INFO, info.clone()) };
+
                 chat_conversation.clear_users();
                 for member in &info.members {
                     chat_conversation.add_user(&member.sn, "", member.role.as_flags(), false);
+                }
+
+                if let Some(about) = &info.about {
+                    chat_conversation.set_topic("unknown", about);
                 }
             }
             None => {

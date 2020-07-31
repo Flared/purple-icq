@@ -27,6 +27,7 @@ pub struct ChatInfo {
     pub group: Option<String>,
     pub sn: String,
     pub title: String,
+    pub about: Option<String>,
     pub members_version: String,
     pub info_version: String,
     pub members: Vec<ChatMember>,
@@ -101,6 +102,7 @@ impl From<icq::client::GetChatInfoResponseData> for ChatInfo {
             title: info.name,
             members_version: info.members_version,
             info_version: info.info_version,
+            about: info.about,
             members: info
                 .members
                 .into_iter()

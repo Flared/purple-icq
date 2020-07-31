@@ -157,6 +157,18 @@ impl ChatConversation {
         unsafe { purple_sys::purple_conv_chat_clear_users(self.as_mut_ptr()) }
     }
 
+    pub fn set_topic(&mut self, who: &str, topic: &str) {
+        let c_topic = CString::new(topic).unwrap();
+        let c_who = CString::new(who).unwrap();
+        unsafe {
+            purple_sys::purple_conv_chat_set_topic(
+                self.as_mut_ptr(),
+                c_who.as_ptr(),
+                c_topic.as_ptr(),
+            );
+        }
+    }
+
     pub fn get_conversation(&mut self) -> Conversation {
         unsafe {
             Conversation::from_ptr(purple_sys::purple_conv_chat_get_conversation(
