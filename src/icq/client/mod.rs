@@ -224,10 +224,11 @@ pub struct ChatInfoResponseMember {
     #[serde(default)]
     pub user_state: ChatInfoResponseMemberUserState,
     pub friendly: Option<String>,
+    #[serde(default)]
     pub anketa: ChatInfoResponseMemberAnketa,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatInfoResponseMemberAnketa {
     pub first_name: Option<String>,

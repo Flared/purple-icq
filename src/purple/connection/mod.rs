@@ -64,12 +64,7 @@ impl Connection {
         unsafe {
             let c_sn = CString::new(chat_input.chat_sn).unwrap();
             let sn_hash = glib_sys::g_str_hash(c_sn.as_ptr() as *mut c_void);
-            let who = if chat_input.author_friendly == chat_input.author_sn {
-                chat_input.author_friendly
-            } else {
-                format!("{}!{}", chat_input.author_sn, chat_input.author_friendly)
-            };
-            let c_sender = CString::new(who).unwrap();
+            let c_sender = CString::new(chat_input.author_sn).unwrap();
             let c_text = CString::new(chat_input.text).unwrap();
 
             purple_sys::serv_got_chat_in(
