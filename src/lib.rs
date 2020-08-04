@@ -566,7 +566,7 @@ impl PurpleICQ {
                             connection,
                             &PartialChatInfo {
                                 sn: msg_info.chat_sn.clone(),
-                                title: msg_info.author_friendly.clone(),
+                                title: msg_info.chat_sn.clone(),
                                 ..Default::default()
                             },
                         ))
@@ -746,6 +746,7 @@ impl PurpleICQ {
         log::debug!("loading chat info: {:?}", info);
         match connection.get_account().find_chat_conversation(&info.sn) {
             Some(mut conversation) => {
+                conversation.set_title(&info.title);
                 let mut chat_conversation = conversation.get_chat_data().unwrap();
                 unsafe { conversation.set_data(conv_data::CHAT_INFO, info.clone()) };
 
