@@ -1,6 +1,6 @@
 use super::{FdSender, SystemMessage};
 use crate::{Handle, ProtocolData};
-use async_std::sync::channel;
+use async_std::channel;
 
 pub struct HandleProxy<'a> {
     pub handle: Handle,
@@ -15,7 +15,7 @@ impl<'a> HandleProxy<'a> {
         F: Send + 'static,
         T: Send + 'static,
     {
-        let (tx, rx) = channel(1);
+        let (tx, rx) = channel::bounded(1);
         self.exec_no_return(move |plugin, protocol_data| {
             if let Err(error) = tx.try_send(f(plugin, protocol_data)) {
                 log::error!("Failed to send result: {:?}", error);

@@ -1,9 +1,9 @@
 use self::account_proxy::AccountProxy;
 use self::connection_proxy::ConnectionProxy;
 use self::handle_proxy::HandleProxy;
-use crate::purple::{Account, Connection};
 use crate::{AccountDataBox, Handle, ProtocolData, PurpleICQ};
-use async_std::sync::{Receiver, Sender};
+use async_std::channel::{Receiver, Sender};
+use purple::{Account, Connection};
 
 mod account_proxy;
 mod connection_proxy;
@@ -23,9 +23,13 @@ impl<T> FdSender<T> {
     }
 
     pub async fn send(&mut self, item: T) {
-        self.channel_sender.send(item).await;
-        use std::io::Write;
-        self.os_sender.write_all(&[0]).unwrap();
+        match self.channel_sender.send(item).await {
+            Ok(()) => {
+                use std::io::Write;
+                self.os_sender.write_all(&[0]).unwrap();
+            }
+            Err(error) => log::error!("Failed to send message: {}", error),
+        }
     }
 
     pub fn try_send(&mut self, item: T) {

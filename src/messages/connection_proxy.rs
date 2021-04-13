@@ -1,7 +1,7 @@
 use super::{FdSender, SystemMessage};
-use crate::purple::{Connection, PurpleConnectionError, PurpleConnectionState};
 use crate::Handle;
-use async_std::sync::channel;
+use async_std::channel;
+use purple::{Connection, PurpleConnectionError, PurpleConnectionState};
 
 pub struct ConnectionProxy<'a> {
     pub handle: Handle,
@@ -16,7 +16,7 @@ impl<'a> ConnectionProxy<'a> {
         F: Send + 'static,
         T: Send + 'static,
     {
-        let (tx, rx) = channel(1);
+        let (tx, rx) = channel::bounded(1);
         self.exec_no_return(move |connection| {
             if let Err(error) = tx.try_send(f(connection)) {
                 log::error!("Failed to send result: {:?}", error);

@@ -1,5 +1,4 @@
 use crate::messages::{FdSender, SystemMessage};
-use crate::purple;
 use std::cell::RefCell;
 use std::sync::Mutex;
 

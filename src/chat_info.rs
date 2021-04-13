@@ -1,4 +1,4 @@
-use super::{icq, purple};
+use super::icq;
 use lazy_static::lazy_static;
 use std::ffi::CString;
 
