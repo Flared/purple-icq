@@ -1,7 +1,7 @@
 use super::{FdSender, SystemMessage};
-use crate::purple::{account, Account};
 use crate::Handle;
-use async_std::sync::channel;
+use async_std::channel;
+use purple::{account, Account};
 
 pub struct AccountProxy<'a> {
     pub handle: Handle,
@@ -14,7 +14,7 @@ impl<'a> AccountProxy<'a> {
         F: Send + 'static,
         T: Send + 'static,
     {
-        let (tx, rx) = channel(1);
+        let (tx, rx) = channel::bounded(1);
         self.exec_no_return(move |account| {
             if let Err(error) = tx.try_send(f(account)) {
                 log::error!("Failed to send result: {:?}", error);
@@ -54,7 +54,7 @@ impl<'a> AccountProxy<'a> {
         cancel_text: String,
         who: Option<String>,
     ) -> Option<String> {
-        let (tx, rx) = channel(1);
+        let (tx, rx) = channel::bounded(1);
         self.exec_no_return(move |account| {
             account.request_input(
                 title.as_deref(),

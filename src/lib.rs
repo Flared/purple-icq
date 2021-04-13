@@ -9,10 +9,8 @@ use std::io::Read;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-mod icq;
-#[macro_use]
-mod purple;
 mod chat_info;
+mod icq;
 pub mod logging;
 mod messages;
 
@@ -361,7 +359,7 @@ impl purple::ChatSendHandler for PurpleICQ {
         message: &str,
         flags: PurpleMessageFlags,
     ) -> i32 {
-        log::info!("{}: {} [{:?}]", id, message, flags);
+        log::info!("{}: {} [{:?}]", id, message, flags.0);
         let mut conversation = match Conversation::find(connection, id) {
             Some(c) => c,
             None => {
@@ -406,8 +404,10 @@ impl purple::InputHandler for PurpleICQ {
         // Consume the actual message.
         match self.system.rx.try_recv() {
             Ok(message) => self.process_message(message),
-            Err(async_std::sync::TryRecvError::Empty) => log::error!("Expected message, but empty"),
-            Err(async_std::sync::TryRecvError::Disconnected) => {
+            Err(async_std::channel::TryRecvError::Empty) => {
+                log::error!("Expected message, but empty")
+            }
+            Err(async_std::channel::TryRecvError::Closed) => {
                 log::error!("System disconnected");
                 if let Some(input_handle) = self.input_handle {
                     self.disable_input(input_handle);
@@ -627,7 +627,12 @@ impl PurpleICQ {
             }
         }
 
-        connection.serv_got_chat_in(msg_info);
+        connection.serv_got_chat_in(
+            &msg_info.chat_sn,
+            &msg_info.author_sn,
+            &msg_info.text,
+            msg_info.time,
+        );
     }
 
     pub fn chat_joined(&mut self, connection: &mut Connection, info: &PartialChatInfo) {

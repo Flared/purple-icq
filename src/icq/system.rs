@@ -5,16 +5,15 @@ use crate::messages::{
     AccountInfo, FdSender, GetChatInfoMessage, GetHistoryMessage, ICQSystemHandle, JoinChatMessage,
     PurpleMessage, SendMsgMessage, SystemMessage,
 };
-use crate::purple;
 use crate::{ChatInfo, Handle};
-use async_std::sync::{channel, Receiver};
+use async_std::channel::{self, Receiver};
 
 const CHANNEL_CAPACITY: usize = 1024;
 
 pub fn spawn() -> ICQSystemHandle {
     let (input_rx, input_tx) = os_pipe::pipe().unwrap();
-    let (system_tx, system_rx) = channel(CHANNEL_CAPACITY);
-    let (purple_tx, purple_rx) = channel(CHANNEL_CAPACITY);
+    let (system_tx, system_rx) = channel::bounded::<SystemMessage>(CHANNEL_CAPACITY);
+    let (purple_tx, purple_rx) = channel::bounded(CHANNEL_CAPACITY);
 
     let fd_sender = FdSender::new(input_tx, system_tx);
 
@@ -79,7 +78,7 @@ impl ICQSystem {
                 .exec(|account| {
                     let token =
                         account.get_string(protocol::RegistrationData::TOKEN_SETTING_KEY, "");
-                    if token == "" {
+                    if token.is_empty() {
                         None
                     } else {
                         Some(protocol::RegistrationData {

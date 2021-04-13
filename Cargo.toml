@@ -13,7 +13,7 @@ crate-type = ["dylib"]
 libc = "*"
 glib-sys = "*"
 glib = "*"
-purple-sys = {git = "https://github.com/flared/libpurple-rust", rev = "bdee978aead20001cf56264f857eba27c5ea7f62"}
+purple = { package = "purple-rs", version = "*" }
 log = "0.4.8"
 env_logger = "0.7"
 lazy_static = "1.4.0"
@@ -30,9 +30,9 @@ futures = "0.3"
 htmlescape = "0.3"
 
 [dependencies.async-std]
-version = "1.6"
+version = "^1"
 features = ["unstable"]
 
 [patch.crates-io]
-http-types = { git = 'https://github.com/flared/http-types', rev = "02c9e09c05c8d0fafd4459c97a832e98bacfc9d0" }
+http-types = { git = 'https://github.com/flared/http-types', rev = "f7c2bcefef4071c9901515c8ce40ce0ad3e08705" }
 
