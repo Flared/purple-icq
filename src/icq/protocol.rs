@@ -202,8 +202,9 @@ pub async fn join_chat(session: &SessionInfo, stamp: &str) -> Result<()> {
     };
     client::join_chat(&join_chat_body)
         .await
-        .map_err(Error::ApiError)?;
-    Ok(())
+        .and_then(|r| r.into_result())
+        .map_err(Error::ApiError)
+        .map(|_| ())
 }
 
 pub async fn send_im(session: &SessionInfo, to_sn: &str, message: &str) -> Result<MsgInfo> {

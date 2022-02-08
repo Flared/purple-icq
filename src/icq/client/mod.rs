@@ -21,6 +21,7 @@ pub enum Error {
     DeserializationError(serde_json::error::Error),
     RequestError(surf::Error),
     UrlParseError(url::ParseError),
+    RapiError(u32, String),
 }
 type Result<T> = std::result::Result<T, Error>;
 
@@ -95,6 +96,26 @@ pub struct RapiBody<'a, T> {
 #[derive(Deserialize, Debug)]
 pub struct RapiResponse<T> {
     pub results: T,
+    #[serde(default)]
+    pub status: RapiStatus,
+}
+
+impl<T> RapiResponse<T> {
+    pub fn into_result(self) -> Result<T> {
+        if self.status.code >= 40000 {
+            Err(Error::RapiError(self.status.code, self.status.reason))
+        } else {
+            Ok(self.results)
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct RapiStatus {
+    #[serde(default)]
+    pub code: u32,
+    #[serde(default)]
+    pub reason: String,
 }
 
 #[derive(Deserialize, Debug)]
