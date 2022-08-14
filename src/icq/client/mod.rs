@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use surf::middleware::HttpClient;
+use surf::Body;
 
 pub mod events;
 pub mod try_result;
@@ -16,7 +16,7 @@ const FILES_INFO_URL: &str = "https://u.icq.net/api/v14/files/info";
 
 #[derive(Debug)]
 pub enum Error {
-    JsonSerializationError(serde_json::error::Error),
+    JsonSerializationError(surf::Error),
     UrlEncodedSerializationError(serde_urlencoded::ser::Error),
     DeserializationError(serde_json::error::Error),
     RequestError(surf::Error),
@@ -29,12 +29,12 @@ trait DefaultHeaders {
     fn with_default_headers(self) -> Self;
 }
 
-impl<T: HttpClient> DefaultHeaders for surf::Request<T> {
+impl DefaultHeaders for surf::RequestBuilder {
     fn with_default_headers(self) -> Self {
-        self.set_header("DNT", "1")
-        .set_header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36")
-        .set_header("Origin", "https://web.icq.com")
-        .set_header("Referer", "https://web.icq.com/")
+        self.header("DNT", "1")
+        .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36")
+        .header("Origin", "https://web.icq.com")
+        .header("Referer", "https://web.icq.com/")
     }
 }
 
@@ -416,8 +416,7 @@ async fn post_form<T: serde::Serialize, U: serde::de::DeserializeOwned>(
     );
     let mut res = surf::post(url)
         .with_default_headers()
-        .body_form(&body)
-        .map_err(Error::UrlEncodedSerializationError)?
+        .body(Body::from_form(body).map_err(Error::RequestError)?)
         .await
         .map_err(Error::RequestError)?;
     let body = res.body_string().await;
